@@ -1,6 +1,7 @@
 package com.yerseg.profiler;
 
 import android.Manifest;
+import android.app.AppOpsManager;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
@@ -21,23 +22,28 @@ import com.google.android.material.snackbar.Snackbar;
 public class MainActivity extends FragmentActivity {
 
     Intent mProfilingServiceIntent;
-    private final static int REQUEST_ENABLE_BT=1;
-
+    private final static int REQUEST_ENABLE_BT = 1;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        Intent mProfilingServiceIntent = new Intent(this, ProfilingService.class).putExtra("inputExtra", "ServiceControl");
+
         setContentView(R.layout.activity_main);
         Toolbar toolbar = findViewById(R.id.toolbar);
         setActionBar(toolbar);
 
-        Button startButton = findViewById(R.id.ProfilingStartButton);
+        Button startButton = findViewById(R.id.profilingStartButton);
+        startButton.setEnabled(!isProfilingServiceRunning());
         startButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Intent intent = new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS);
-                startActivityForResult(intent, 1);
+                if (!isUsageStatsPermissionsGranted())
+                {
+                    Intent intent = new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS);
+                    startActivityForResult(intent, 1);
+                }
 
                 requestPermissions(new String[]{
                         Manifest.permission.ACCESS_COARSE_LOCATION,
@@ -52,6 +58,16 @@ public class MainActivity extends FragmentActivity {
 
                 startService();
                 startButton.setEnabled(false);
+            }
+        });
+
+        Button stopButton = findViewById(R.id.profilingStopButton);
+        stopButton.setEnabled(isProfilingServiceRunning());
+        stopButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                stopService();
+                stopButton.setEnabled(false);
             }
         });
 
@@ -99,6 +115,17 @@ public class MainActivity extends FragmentActivity {
     }
 
     @Override
+    protected void onStart() {
+        super.onStart();
+
+        Button startButton = findViewById(R.id.profilingStartButton);
+        startButton.setEnabled(!isProfilingServiceRunning());
+
+        Button stopButton = findViewById(R.id.profilingStopButton);
+        startButton.setEnabled(isProfilingServiceRunning());
+    }
+
+    @Override
     protected void onStop() {
         super.onStop();
     }
@@ -109,15 +136,32 @@ public class MainActivity extends FragmentActivity {
     }
 
     private void startService() {
-        Intent mProfilingServiceIntent = new Intent(this, ProfilingService.class);
-        mProfilingServiceIntent.putExtra("inputExtra", "BEGIN_______");
         ContextCompat.startForegroundService(this, mProfilingServiceIntent);
     }
 
     private void stopService() {
         if (mProfilingServiceIntent == null)
-            mProfilingServiceIntent = new Intent(this, ProfilingService.class);
+            mProfilingServiceIntent = new Intent(this, ProfilingService.class).putExtra("inputExtra", "ServiceControl");
         stopService(mProfilingServiceIntent);
+    }
+
+    private boolean isProfilingServiceRunning() {
+        return ProfilingService.isRunning;
+    }
+
+    private boolean isUsageStatsPermissionsGranted()
+    {
+        boolean granted = false;
+        AppOpsManager appOps = (AppOpsManager) getSystemService(APP_OPS_SERVICE);
+        int mode = appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), getPackageName());
+
+        if (mode == AppOpsManager.MODE_DEFAULT) {
+            granted = (checkCallingOrSelfPermission(android.Manifest.permission.PACKAGE_USAGE_STATS) == PackageManager.PERMISSION_GRANTED);
+        } else {
+            granted = (mode == AppOpsManager.MODE_ALLOWED);
+        }
+
+        return  granted;
     }
 
     @Override

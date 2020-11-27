@@ -60,6 +60,8 @@ public class ProfilingService extends Service {
     public static final String APP_STATS_FILE_NAME = "app.data";
     public static final String LOCATION_STATS_FILE_NAME = "location.data";
 
+    public static boolean isRunning = false;
+
     private Looper mServiceLooper;
     private ServiceHandler mServiceHandler;
 
@@ -82,6 +84,10 @@ public class ProfilingService extends Service {
     public void onCreate() {
         super.onCreate();
         Log.d("Profiler [Service]", String.format(Locale.getDefault(), "\t%d\tonCreate()", Process.myTid()));
+
+        synchronized (this) {
+            isRunning = true;
+        }
 
         HandlerThread thread = new HandlerThread("LocationThread", Process.THREAD_PRIORITY_FOREGROUND);
         thread.start();
@@ -109,6 +115,11 @@ public class ProfilingService extends Service {
     public void onDestroy() {
         Log.d("Profiler [Service]", String.format(Locale.getDefault(), "\t%d\tonDestroy()", Process.myTid()));
         super.onDestroy();
+
+        synchronized (this) {
+            isRunning = false;
+        }
+
         NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         notificationManager.cancel(1);
     }
