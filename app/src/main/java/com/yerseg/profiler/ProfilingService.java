@@ -37,8 +37,6 @@ import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 
-import java.io.File;
-import java.io.FileWriter;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
@@ -52,10 +50,15 @@ public class ProfilingService extends Service {
     public static final String PUSH_BT_SCAN_WORK_TAG = "com.yerseg.profiler.BT_SCAN_WORK";
     public static final String PUSH_APP_STAT_SCAN_WORK_TAG = "com.yerseg.profiler.APP_STAT_SCAN_WORK";
 
-    public static int WIFI_STATS_UPDATE_FREQ = 5000;
-    public static int BLUETOOTH_STATS_UPDATE_FREQ = 5000;
-    public static int APP_STATS_UPDATE_FREQ = 5000;
-    public static int LOCATION_STATS_UPDATE_FREQ = 5000;
+    public static final int WIFI_STATS_UPDATE_FREQ = 5000;
+    public static final int BLUETOOTH_STATS_UPDATE_FREQ = 5000;
+    public static final int APP_STATS_UPDATE_FREQ = 5000;
+    public static final int LOCATION_STATS_UPDATE_FREQ = 5000;
+
+    public static final String WIFI_STATS_FILE_NAME = "wifi.data";
+    public static final String BLUETOOTH_STATS_FILE_NAME = "bt.data";
+    public static final String APP_STATS_FILE_NAME = "app.data";
+    public static final String LOCATION_STATS_FILE_NAME = "location.data";
 
     private Looper mServiceLooper;
     private ServiceHandler mServiceHandler;
@@ -106,6 +109,8 @@ public class ProfilingService extends Service {
     public void onDestroy() {
         Log.d("Profiler [Service]", String.format(Locale.getDefault(), "\t%d\tonDestroy()", Process.myTid()));
         super.onDestroy();
+        NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        notificationManager.cancel(1);
     }
 
     @Nullable
@@ -137,29 +142,6 @@ public class ProfilingService extends Service {
         startForeground(1, notification);
     }
 
-    private void writeFileOnInternalStorage(String fileName, String body) {
-        Log.d("Profiler [Service]", String.format(Locale.getDefault(), "\t%d\twriteFileOnInternalStorage()", Process.myTid()));
-        File directory = new File(getApplicationContext().getFilesDir(), "ProfilingData");
-        if (!directory.exists()) {
-            directory.mkdir();
-        }
-
-        try {
-            File file = new File(directory, fileName);
-            FileWriter writer = new FileWriter(file, true);
-
-            MutexHolder.getMutex().lock();
-            writer.append(body);
-            writer.flush();
-            MutexHolder.getMutex().unlock();
-
-            writer.close();
-        } catch (Exception e) {
-            MutexHolder.getMutex().unlock();
-            e.printStackTrace();
-        }
-    }
-
     private void startLocationTracking() {
         LocationRequest locationRequest = new LocationRequest();
         locationRequest.setInterval(LOCATION_STATS_UPDATE_FREQ);
@@ -177,7 +159,7 @@ public class ProfilingService extends Service {
                     public void onLocationResult(LocationResult result) {
                         Log.d("Profiler [LocationStat]", String.format(Locale.getDefault(), "\t%d\tonLocationResult()", Process.myTid()));
                         Location location = result.getLastLocation();
-                        String locationInfo = String.format(Locale.getDefault(), "%s, accuracy =  %f, altitude = %f, latitude = %f, longitude = %f, provider = %s\n",
+                        String locationStats = String.format(Locale.getDefault(), "%s,%f,%f,%f,%f,%s\n",
                                 GetTimeStamp(System.currentTimeMillis()),
                                 location.getAccuracy(),
                                 location.getAltitude(),
@@ -185,8 +167,7 @@ public class ProfilingService extends Service {
                                 location.getLongitude(),
                                 location.getProvider()
                         );
-
-                        writeFileOnInternalStorage("location.data", locationInfo);
+                        FileWriter.writeFile(getApplicationContext().getFilesDir(), LOCATION_STATS_FILE_NAME, locationStats);
                     }
                 }, mServiceLooper);
             }
@@ -199,10 +180,33 @@ public class ProfilingService extends Service {
         BroadcastReceiver wifiScanReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context c, Intent intent) {
-                boolean rc = intent.getBooleanExtra(
-                        WifiManager.EXTRA_RESULTS_UPDATED, false);
-                if (rc) {
-                    onWifiScanResultsAvailable();
+                if (intent.getBooleanExtra(WifiManager.EXTRA_RESULTS_UPDATED, false)) {
+                    final WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+                    List<ScanResult> scanResults = wifiManager.getScanResults();
+
+                    String statResponseId = UUID.randomUUID().toString();
+                    String timestamp = GetTimeStamp(System.currentTimeMillis());
+
+                    for (ScanResult result : scanResults) {
+                        String wifiStats = String.format(Locale.getDefault(), "%s,%s,%s,%s,%s,%d,%d,%d,%d,%d,%s,%d,%s,%b,%b\n",
+                                timestamp,
+                                statResponseId,
+                                result.BSSID,
+                                result.SSID,
+                                result.capabilities,
+                                result.centerFreq0,
+                                result.centerFreq1,
+                                result.channelWidth,
+                                result.frequency,
+                                result.level,
+                                result.operatorFriendlyName,
+                                result.timestamp,
+                                result.venueName,
+                                result.is80211mcResponder(),
+                                result.isPasspointNetwork());
+
+                        FileWriter.writeFile(getApplicationContext().getFilesDir(), WIFI_STATS_FILE_NAME, wifiStats);
+                    }
                 }
             }
         };
@@ -222,7 +226,7 @@ public class ProfilingService extends Service {
                 if (BluetoothDevice.ACTION_FOUND.equals(action)) {
                     BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
 
-                    String resultStr = String.format(Locale.getDefault(), "%s,%s,%s,%d,%d,%d,%d\n",
+                    String bluetoothStats = String.format(Locale.getDefault(), "%s,%s,%s,%d,%d,%d,%d\n",
                             GetTimeStamp(System.currentTimeMillis()),
                             device.getName(),
                             device.getAddress(),
@@ -231,7 +235,7 @@ public class ProfilingService extends Service {
                             device.getBondState(),
                             device.getType());
 
-                    writeFileOnInternalStorage("bt.data", resultStr);
+                    FileWriter.writeFile(getApplicationContext().getFilesDir(), BLUETOOTH_STATS_FILE_NAME, bluetoothStats);
                 }
             }
         };
@@ -246,33 +250,5 @@ public class ProfilingService extends Service {
     private void startApplicationsStatisticTracking() {
         OneTimeWorkRequest refreshWork = new OneTimeWorkRequest.Builder(ApplicationsProfilerWorker.class).build();
         WorkManager.getInstance(getApplicationContext()).enqueueUniqueWork(PUSH_APP_STAT_SCAN_WORK_TAG, ExistingWorkPolicy.KEEP, refreshWork);
-    }
-
-    private void onWifiScanResultsAvailable() {
-        final WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-        List<ScanResult> scanResults = wifiManager.getScanResults();
-
-        String statResponseId = UUID.randomUUID().toString();
-        String timestamp = GetTimeStamp(System.currentTimeMillis());
-
-        for (ScanResult result : scanResults) {
-            String resultStr = String.format(Locale.getDefault(), "%s,%s,%s,%s,%s,%d,%d,%d,%d,%d,%s,%d,%s,%b,%b\n",
-                    timestamp,
-                    statResponseId,
-                    result.BSSID,
-                    result.SSID,
-                    result.capabilities,
-                    result.centerFreq0,
-                    result.centerFreq1,
-                    result.channelWidth,
-                    result.frequency,
-                    result.level,
-                    result.operatorFriendlyName,
-                    result.timestamp,
-                    result.venueName,
-                    result.is80211mcResponder(),
-                    result.isPasspointNetwork());
-            writeFileOnInternalStorage("wifi.data", resultStr);
-        }
     }
 }

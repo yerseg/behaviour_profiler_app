@@ -6,9 +6,7 @@ import android.app.usage.UsageStats;
 import android.app.usage.UsageStatsManager;
 import android.content.Context;
 import android.content.res.Configuration;
-import android.os.Process;
 import android.os.SystemClock;
-import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.work.ExistingWorkPolicy;
@@ -17,8 +15,6 @@ import androidx.work.WorkManager;
 import androidx.work.Worker;
 import androidx.work.WorkerParameters;
 
-import java.io.File;
-import java.io.FileWriter;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -46,7 +42,7 @@ public class ApplicationsProfilerWorker extends Worker {
 
     private void doActualWork() {
 
-        writeFileOnInternalStorage("app.data", getStatisticsForWritingToFile());
+        FileWriter.writeFile(getApplicationContext().getFilesDir(), ProfilingService.APP_STATS_FILE_NAME, getStatisticsForWritingToFile());
 
         try {
             OneTimeWorkRequest refreshWork = new OneTimeWorkRequest.Builder(ApplicationsProfilerWorker.class).build();
@@ -136,29 +132,5 @@ public class ApplicationsProfilerWorker extends Worker {
         }
 
         return statistic.toString();
-    }
-
-    private void writeFileOnInternalStorage(String fileName, String body)
-    {
-        Log.d("Profiler [AppStat]", String.format(Locale.getDefault(), "\t%d\twriteFileOnInternalStorage()", Process.myTid()));
-        File directory = new File(getApplicationContext().getFilesDir(), "ProfilingData");
-        if (!directory.exists()) {
-            directory.mkdir();
-        }
-
-        try {
-            File file = new File(directory, fileName);
-            FileWriter writer = new FileWriter(file, true);
-
-            MutexHolder.getMutex().lock();
-            writer.append(body);
-            writer.flush();
-            MutexHolder.getMutex().unlock();
-
-            writer.close();
-        } catch (Exception e) {
-            MutexHolder.getMutex().unlock();
-            e.printStackTrace();
-        }
     }
 }
