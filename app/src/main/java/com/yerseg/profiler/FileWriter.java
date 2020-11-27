@@ -23,8 +23,6 @@ public class FileWriter {
             MutexHolder.getMutex().lock();
             writer.append(data);
             writer.flush();
-            MutexHolder.getMutex().unlock();
-
             writer.close();
         } catch (Exception e) {
             e.printStackTrace();
