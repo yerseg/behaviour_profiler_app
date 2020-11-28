@@ -24,8 +24,6 @@ public class MainActivity extends FragmentActivity {
     Intent mProfilingServiceIntent;
     private final static int REQUEST_ENABLE_BT = 1;
 
-    // TODO: Сделать состояние кнопок обновляемым в зависимости от состояния сервиса - сейчас после старта и стопа - все кнопки становятся выключенными.
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -35,6 +33,8 @@ public class MainActivity extends FragmentActivity {
         setActionBar(toolbar);
 
         Button startButton = findViewById(R.id.profilingStartButton);
+        Button stopButton = findViewById(R.id.profilingStopButton);
+
         startButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -56,16 +56,20 @@ public class MainActivity extends FragmentActivity {
                 }, 1001);
 
                 startService();
+                // Can crash when click on stop button before service completely start
                 startButton.setEnabled(false);
+                stopButton.setEnabled(true);
             }
         });
 
-        Button stopButton = findViewById(R.id.profilingStopButton);
+
         stopButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 stopService();
+                // Can crash when click on start button before service completely stop
                 stopButton.setEnabled(false);
+                startButton.setEnabled(true);
             }
         });
 
