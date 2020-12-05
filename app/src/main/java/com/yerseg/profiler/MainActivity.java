@@ -21,6 +21,10 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.snackbar.Snackbar;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.channels.FileChannel;
 
 public class MainActivity extends FragmentActivity {
 
@@ -44,8 +48,7 @@ public class MainActivity extends FragmentActivity {
         startButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (!isUsageStatsPermissionsGranted())
-                {
+                if (!isUsageStatsPermissionsGranted()) {
                     Intent intent = new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS);
                     startActivityForResult(intent, 1);
                 }
@@ -128,8 +131,7 @@ public class MainActivity extends FragmentActivity {
         return ProfilingService.isRunning;
     }
 
-    private boolean isUsageStatsPermissionsGranted()
-    {
+    private boolean isUsageStatsPermissionsGranted() {
         boolean granted = false;
         AppOpsManager appOps = (AppOpsManager) getSystemService(APP_OPS_SERVICE);
         int mode = appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), getPackageName());
@@ -140,7 +142,7 @@ public class MainActivity extends FragmentActivity {
             granted = (mode == AppOpsManager.MODE_ALLOWED);
         }
 
-        return  granted;
+        return granted;
     }
 
     void requestPermissions() {
@@ -160,8 +162,7 @@ public class MainActivity extends FragmentActivity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         if (requestCode == 1001 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
             mIsPermissionsGranted = true;
-        }
-        else {
+        } else {
             mIsPermissionsGranted = false;
         }
     }
@@ -199,6 +200,28 @@ public class MainActivity extends FragmentActivity {
         return directoryFile;
     }
 
+    private void moveFile(File src, File dst) throws IOException {
+        FileChannel inChannel = new FileInputStream(src).getChannel();
+        FileChannel outChannel = new FileOutputStream(dst).getChannel();
+
+        try {
+            inChannel.transferTo(0, inChannel.size(), outChannel);
+            inChannel.close();
+            outChannel.close();
+
+            if (src.exists()) {
+                src.delete();
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        } finally {
+            if (inChannel != null)
+                inChannel.close();
+            if (outChannel != null)
+                outChannel.close();
+        }
+    }
+
     private void sendFilesByEmail() {
         String[] dataFilesNames = {
                 ProfilingService.APP_STATS_FILE_NAME,
@@ -208,25 +231,40 @@ public class MainActivity extends FragmentActivity {
         };
 
         File directory = getProfilingFilesDir();
-        if (directory.exists())
-        {
-            for (String fileName : dataFilesNames)
-            {
-                File file = new File(directory, fileName);
-                if (file.exists())
-                {
-                    Uri path = Uri.fromFile(file);
-                    Intent emailIntent = new Intent(Intent.ACTION_SEND);
 
-                    emailIntent.setType("vnd.android.cursor.dir/email");
-                    String to[] = {"cergei.kazmin@gmail.com"};
-                    emailIntent.putExtra(Intent.EXTRA_EMAIL, to);
-
-                    emailIntent.putExtra(Intent.EXTRA_STREAM, path);
-
-                    emailIntent.putExtra(Intent.EXTRA_SUBJECT, "Subject");
-                    startActivity(Intent.createChooser(emailIntent , "Send email..."));
+        if (directory.exists()) {
+            File externalDir = getApplicationContext().getExternalFilesDir(null);
+            for (String fileName : dataFilesNames) {
+                MutexHolder.getMutex().lock();
+                try {
+                    moveFile(new File(getProfilingFilesDir(), fileName), new File(externalDir, fileName));
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                } finally {
+                    MutexHolder.getMutex().unlock();
                 }
+            }
+
+            try {
+                for (String fileName : dataFilesNames) {
+                    File file = new File(externalDir, fileName);
+                    if (file.exists()) {
+                        Uri path = Uri.fromFile(file);
+                        Intent emailIntent = new Intent(Intent.ACTION_SEND);
+
+                        emailIntent.setType("vnd.android.cursor.dir/email");
+                        String to[] = {"cergei.kazmin@gmail.com"};
+                        emailIntent.putExtra(Intent.EXTRA_EMAIL, to);
+
+                        emailIntent.putExtra(Intent.EXTRA_STREAM, path);
+
+                        emailIntent.putExtra(Intent.EXTRA_SUBJECT, "Subject");
+                        startActivity(Intent.createChooser(emailIntent, "Send email..."));
+                    }
+                }
+
+            } catch (Exception ex) {
+                ex.printStackTrace();
             }
         }
     }
