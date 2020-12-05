@@ -37,6 +37,7 @@ import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 
+import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
@@ -55,6 +56,7 @@ public class ProfilingService extends Service {
     public static final int APP_STATS_UPDATE_FREQ = 5000;
     public static final int LOCATION_STATS_UPDATE_FREQ = 5000;
 
+    public static final String PROFILING_STATS_DIRECTORY_NAME = "ProfilingData";
     public static final String WIFI_STATS_FILE_NAME = "wifi.data";
     public static final String BLUETOOTH_STATS_FILE_NAME = "bt.data";
     public static final String APP_STATS_FILE_NAME = "app.data";
@@ -161,8 +163,7 @@ public class ProfilingService extends Service {
 
         FusedLocationProviderClient fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
 
-        if (fusedLocationProviderClient != null)
-        {
+        if (fusedLocationProviderClient != null) {
             int permission = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION);
             if (permission == PackageManager.PERMISSION_GRANTED) {
                 fusedLocationProviderClient.requestLocationUpdates(locationRequest, new LocationCallback() {
@@ -178,7 +179,7 @@ public class ProfilingService extends Service {
                                 location.getLongitude(),
                                 location.getProvider()
                         );
-                        FileWriter.writeFile(getApplicationContext().getFilesDir(), LOCATION_STATS_FILE_NAME, locationStats);
+                        FileWriter.writeFile(getProfilingFilesDir(), LOCATION_STATS_FILE_NAME, locationStats);
                     }
                 }, mServiceLooper);
             }
@@ -216,7 +217,7 @@ public class ProfilingService extends Service {
                                 result.is80211mcResponder(),
                                 result.isPasspointNetwork());
 
-                        FileWriter.writeFile(getApplicationContext().getFilesDir(), WIFI_STATS_FILE_NAME, wifiStats);
+                        FileWriter.writeFile(getProfilingFilesDir(), WIFI_STATS_FILE_NAME, wifiStats);
                     }
                 }
             }
@@ -246,7 +247,7 @@ public class ProfilingService extends Service {
                             device.getBondState(),
                             device.getType());
 
-                    FileWriter.writeFile(getApplicationContext().getFilesDir(), BLUETOOTH_STATS_FILE_NAME, bluetoothStats);
+                    FileWriter.writeFile(getProfilingFilesDir(), BLUETOOTH_STATS_FILE_NAME, bluetoothStats);
                 }
             }
         };
@@ -261,5 +262,16 @@ public class ProfilingService extends Service {
     private void startApplicationsStatisticTracking() {
         OneTimeWorkRequest refreshWork = new OneTimeWorkRequest.Builder(ApplicationsProfilerWorker.class).build();
         WorkManager.getInstance(getApplicationContext()).enqueueUniqueWork(PUSH_APP_STAT_SCAN_WORK_TAG, ExistingWorkPolicy.KEEP, refreshWork);
+    }
+
+    private File getProfilingFilesDir() {
+        File filesDirFile = getApplicationContext().getFilesDir();
+
+        File directoryFile = new File(filesDirFile, ProfilingService.PROFILING_STATS_DIRECTORY_NAME);
+        if (!directoryFile.exists()) {
+            directoryFile.mkdir();
+        }
+
+        return directoryFile;
     }
 }

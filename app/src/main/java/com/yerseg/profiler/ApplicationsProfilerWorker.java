@@ -15,6 +15,7 @@ import androidx.work.WorkManager;
 import androidx.work.Worker;
 import androidx.work.WorkerParameters;
 
+import java.io.File;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -42,7 +43,7 @@ public class ApplicationsProfilerWorker extends Worker {
 
     private void doActualWork() {
 
-        FileWriter.writeFile(getApplicationContext().getFilesDir(), ProfilingService.APP_STATS_FILE_NAME, getStatisticsForWritingToFile());
+        FileWriter.writeFile(getProfilingFilesDir(), ProfilingService.APP_STATS_FILE_NAME, getStatisticsForWritingToFile());
 
         try {
             OneTimeWorkRequest refreshWork = new OneTimeWorkRequest.Builder(ApplicationsProfilerWorker.class).build();
@@ -53,8 +54,7 @@ public class ApplicationsProfilerWorker extends Worker {
 
     }
 
-    private String getStatisticsForWritingToFile()
-    {
+    private String getStatisticsForWritingToFile() {
         long beginTime = java.lang.System.currentTimeMillis() - SystemClock.elapsedRealtime();
         long endTime = java.lang.System.currentTimeMillis();
 
@@ -67,8 +67,7 @@ public class ApplicationsProfilerWorker extends Worker {
 
         List<UsageStats> usageStatsList = usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, beginTime, endTime);
 
-        for (UsageStats usageStats : usageStatsList)
-        {
+        for (UsageStats usageStats : usageStatsList) {
             statistic.append(String.format(Locale.getDefault(), "UsageStats,%s,%s,%s,%d,%d,%d,%d\n",
                     timestamp,
                     statResponseId,
@@ -81,8 +80,7 @@ public class ApplicationsProfilerWorker extends Worker {
 
         List<ConfigurationStats> configurationStatsList = usageStatsManager.queryConfigurations(UsageStatsManager.INTERVAL_DAILY, beginTime, endTime);
 
-        for (ConfigurationStats configurationStats : configurationStatsList)
-        {
+        for (ConfigurationStats configurationStats : configurationStatsList) {
             Configuration configuration = configurationStats.getConfiguration();
             statistic.append(String.format(Locale.getDefault(), "ConfigStats,%s,%s,%d,%d,%d,%d,%d,%d,%d,%f,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%s,%b,%b,%b\n",
                     timestamp,
@@ -118,8 +116,7 @@ public class ApplicationsProfilerWorker extends Worker {
 
         List<EventStats> eventStatsList = usageStatsManager.queryEventStats(UsageStatsManager.INTERVAL_DAILY, beginTime, endTime);
 
-        for (EventStats eventStat : eventStatsList)
-        {
+        for (EventStats eventStat : eventStatsList) {
             statistic.append(String.format(Locale.getDefault(), "EventStats,%s,%s,%d,%d,%d,%d,%d,%d\n",
                     timestamp,
                     statResponseId,
@@ -133,4 +130,16 @@ public class ApplicationsProfilerWorker extends Worker {
 
         return statistic.toString();
     }
+
+    private File getProfilingFilesDir() {
+        File filesDirFile = getApplicationContext().getFilesDir();
+
+        File directoryFile = new File(filesDirFile, ProfilingService.PROFILING_STATS_DIRECTORY_NAME);
+        if (!directoryFile.exists()) {
+            directoryFile.mkdir();
+        }
+
+        return directoryFile;
+    }
 }
+   
