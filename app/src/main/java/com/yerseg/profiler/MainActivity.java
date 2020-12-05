@@ -4,6 +4,7 @@ import android.Manifest;
 import android.app.AppOpsManager;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.view.Menu;
@@ -19,10 +20,15 @@ import androidx.fragment.app.FragmentActivity;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.snackbar.Snackbar;
 
+import java.io.File;
+
 public class MainActivity extends FragmentActivity {
 
-    Intent mProfilingServiceIntent;
     private final static int REQUEST_ENABLE_BT = 1;
+    private final static int PERMISSIONS_REQUEST_ID = 1001;
+
+    Intent mProfilingServiceIntent;
+    boolean mIsPermissionsGranted = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -43,17 +49,6 @@ public class MainActivity extends FragmentActivity {
                     Intent intent = new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS);
                     startActivityForResult(intent, 1);
                 }
-
-                requestPermissions(new String[]{
-                        Manifest.permission.ACCESS_COARSE_LOCATION,
-                        Manifest.permission.ACCESS_FINE_LOCATION,
-                        Manifest.permission.ACCESS_WIFI_STATE,
-                        Manifest.permission.BLUETOOTH,
-                        Manifest.permission.BLUETOOTH_ADMIN,
-                        Manifest.permission.CHANGE_WIFI_STATE,
-                        Manifest.permission.FOREGROUND_SERVICE,
-                        Manifest.permission.PACKAGE_USAGE_STATS
-                }, 1001);
 
                 startService();
                 // Can crash when click on stop button before service completely start
@@ -85,35 +80,13 @@ public class MainActivity extends FragmentActivity {
         TextView textView = findViewById(R.id.textInstruction);
         textView.setVisibility(View.VISIBLE);
 
-        /*FloatingActionButton emailSendButton = findViewById(R.id.SendDataByEmailButton);
+        FloatingActionButton emailSendButton = findViewById(R.id.SendDataByEmailButton);
         emailSendButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                String[] dataFilesNames = {"wifi.data", "location.data", "bt.data"};
-                File directory = new File(getApplicationContext().getFilesDir(), "ProfilingData");
-                if (directory.exists())
-                {
-                    for (String fileName : dataFilesNames)
-                    {
-                        File file = new File(directory, fileName);
-                        if (file.exists())
-                        {
-                            Uri path = Uri.fromFile(file);
-                            Intent emailIntent = new Intent(Intent.ACTION_SEND);
-
-                            emailIntent.setType("vnd.android.cursor.dir/email");
-                            String to[] = {"cergei.kazmin@gmail.com"};
-                            emailIntent.putExtra(Intent.EXTRA_EMAIL, to);
-
-                            emailIntent.putExtra(Intent.EXTRA_STREAM, path);
-
-                            emailIntent.putExtra(Intent.EXTRA_SUBJECT, "Subject");
-                            startActivity(Intent.createChooser(emailIntent , "Send email..."));
-                        }
-                    }
-                }
+                sendFilesByEmail();
             }
-        });*/
+        });
     }
 
     @Override
@@ -125,6 +98,8 @@ public class MainActivity extends FragmentActivity {
 
         Button stopButton = findViewById(R.id.profilingStopButton);
         stopButton.setEnabled(isProfilingServiceRunning());
+
+        requestPermissions();
     }
 
     @Override
@@ -145,6 +120,7 @@ public class MainActivity extends FragmentActivity {
     private void stopService() {
         if (mProfilingServiceIntent == null)
             mProfilingServiceIntent = new Intent(this, ProfilingService.class).putExtra("inputExtra", "ServiceControl");
+
         stopService(mProfilingServiceIntent);
     }
 
@@ -167,10 +143,26 @@ public class MainActivity extends FragmentActivity {
         return  granted;
     }
 
+    void requestPermissions() {
+        requestPermissions(new String[]{
+                Manifest.permission.ACCESS_COARSE_LOCATION,
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_WIFI_STATE,
+                Manifest.permission.BLUETOOTH,
+                Manifest.permission.BLUETOOTH_ADMIN,
+                Manifest.permission.CHANGE_WIFI_STATE,
+                Manifest.permission.FOREGROUND_SERVICE,
+                Manifest.permission.PACKAGE_USAGE_STATS
+        }, PERMISSIONS_REQUEST_ID);
+    }
+
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         if (requestCode == 1001 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            // Do something with granted permission
+            mIsPermissionsGranted = true;
+        }
+        else {
+            mIsPermissionsGranted = false;
         }
     }
 
@@ -194,5 +186,48 @@ public class MainActivity extends FragmentActivity {
         }
 
         return super.onOptionsItemSelected(item);
+    }
+
+    private File getProfilingFilesDir() {
+        File filesDirFile = getApplicationContext().getFilesDir();
+
+        File directoryFile = new File(filesDirFile, ProfilingService.PROFILING_STATS_DIRECTORY_NAME);
+        if (!directoryFile.exists()) {
+            directoryFile.mkdir();
+        }
+
+        return directoryFile;
+    }
+
+    private void sendFilesByEmail() {
+        String[] dataFilesNames = {
+                ProfilingService.APP_STATS_FILE_NAME,
+                ProfilingService.BLUETOOTH_STATS_FILE_NAME,
+                ProfilingService.LOCATION_STATS_FILE_NAME,
+                ProfilingService.WIFI_STATS_FILE_NAME
+        };
+
+        File directory = getProfilingFilesDir();
+        if (directory.exists())
+        {
+            for (String fileName : dataFilesNames)
+            {
+                File file = new File(directory, fileName);
+                if (file.exists())
+                {
+                    Uri path = Uri.fromFile(file);
+                    Intent emailIntent = new Intent(Intent.ACTION_SEND);
+
+                    emailIntent.setType("vnd.android.cursor.dir/email");
+                    String to[] = {"cergei.kazmin@gmail.com"};
+                    emailIntent.putExtra(Intent.EXTRA_EMAIL, to);
+
+                    emailIntent.putExtra(Intent.EXTRA_STREAM, path);
+
+                    emailIntent.putExtra(Intent.EXTRA_SUBJECT, "Subject");
+                    startActivity(Intent.createChooser(emailIntent , "Send email..."));
+                }
+            }
+        }
     }
 }
