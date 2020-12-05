@@ -37,9 +37,6 @@ import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 
-import java.io.File;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -57,30 +54,24 @@ public class ProfilingService extends Service {
     public static final int LOCATION_STATS_UPDATE_FREQ = 5000;
 
     public static final String PROFILING_STATS_DIRECTORY_NAME = "ProfilingData";
-    public static final String WIFI_STATS_FILE_NAME = "wifi.data";
-    public static final String BLUETOOTH_STATS_FILE_NAME = "bt.data";
+    public static final String PROFILING_STATS_TEMP_DIRECTORY_NAME = "ProfilingDataTemp";
+
     public static final String APP_STATS_FILE_NAME = "app.data";
+    public static final String BLUETOOTH_STATS_FILE_NAME = "bt.data";
     public static final String LOCATION_STATS_FILE_NAME = "location.data";
+    public static final String WIFI_STATS_FILE_NAME = "wifi.data";
+
+    public static final String[] STAT_FILE_NAMES = {
+            APP_STATS_FILE_NAME,
+            BLUETOOTH_STATS_FILE_NAME,
+            LOCATION_STATS_FILE_NAME,
+            WIFI_STATS_FILE_NAME
+    };
 
     public static boolean isRunning = false;
 
     private Looper mServiceLooper;
     private ServiceHandler mServiceHandler;
-
-    public static String GetTimeStamp(long time) {
-        return new SimpleDateFormat("dd.MM.yyyy/HH:mm:ss.SSS").format(new Date(time));
-    }
-
-    private final class ServiceHandler extends Handler {
-        public ServiceHandler(Looper looper) {
-            super(looper);
-        }
-
-        @Override
-        public void handleMessage(@NonNull Message msg) {
-            super.handleMessage(msg);
-        }
-    }
 
     @Override
     public void onCreate() {
@@ -172,14 +163,14 @@ public class ProfilingService extends Service {
                         Log.d("Profiler [LocationStat]", String.format(Locale.getDefault(), "\t%d\tonLocationResult()", Process.myTid()));
                         Location location = result.getLastLocation();
                         String locationStats = String.format(Locale.getDefault(), "%s,%f,%f,%f,%f,%s\n",
-                                GetTimeStamp(System.currentTimeMillis()),
+                                Utils.GetTimeStamp(System.currentTimeMillis()),
                                 location.getAccuracy(),
                                 location.getAltitude(),
                                 location.getLatitude(),
                                 location.getLongitude(),
                                 location.getProvider()
                         );
-                        FileWriter.writeFile(getProfilingFilesDir(), LOCATION_STATS_FILE_NAME, locationStats);
+                        FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), LOCATION_STATS_FILE_NAME, locationStats);
                     }
                 }, mServiceLooper);
             }
@@ -197,7 +188,7 @@ public class ProfilingService extends Service {
                     List<ScanResult> scanResults = wifiManager.getScanResults();
 
                     String statResponseId = UUID.randomUUID().toString();
-                    String timestamp = GetTimeStamp(System.currentTimeMillis());
+                    String timestamp = Utils.GetTimeStamp(System.currentTimeMillis());
 
                     for (ScanResult result : scanResults) {
                         String wifiStats = String.format(Locale.getDefault(), "%s,%s,%s,%s,%s,%d,%d,%d,%d,%d,%s,%d,%s,%b,%b\n",
@@ -217,7 +208,7 @@ public class ProfilingService extends Service {
                                 result.is80211mcResponder(),
                                 result.isPasspointNetwork());
 
-                        FileWriter.writeFile(getProfilingFilesDir(), WIFI_STATS_FILE_NAME, wifiStats);
+                        FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), WIFI_STATS_FILE_NAME, wifiStats);
                     }
                 }
             }
@@ -239,7 +230,7 @@ public class ProfilingService extends Service {
                     BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
 
                     String bluetoothStats = String.format(Locale.getDefault(), "%s,%s,%s,%d,%d,%d,%d\n",
-                            GetTimeStamp(System.currentTimeMillis()),
+                            Utils.GetTimeStamp(System.currentTimeMillis()),
                             device.getName(),
                             device.getAddress(),
                             device.getBluetoothClass().getMajorDeviceClass(),
@@ -247,7 +238,7 @@ public class ProfilingService extends Service {
                             device.getBondState(),
                             device.getType());
 
-                    FileWriter.writeFile(getProfilingFilesDir(), BLUETOOTH_STATS_FILE_NAME, bluetoothStats);
+                    FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), BLUETOOTH_STATS_FILE_NAME, bluetoothStats);
                 }
             }
         };
@@ -264,14 +255,14 @@ public class ProfilingService extends Service {
         WorkManager.getInstance(getApplicationContext()).enqueueUniqueWork(PUSH_APP_STAT_SCAN_WORK_TAG, ExistingWorkPolicy.KEEP, refreshWork);
     }
 
-    private File getProfilingFilesDir() {
-        File filesDirFile = getApplicationContext().getFilesDir();
-
-        File directoryFile = new File(filesDirFile, ProfilingService.PROFILING_STATS_DIRECTORY_NAME);
-        if (!directoryFile.exists()) {
-            directoryFile.mkdir();
+    private final class ServiceHandler extends Handler {
+        public ServiceHandler(Looper looper) {
+            super(looper);
         }
 
-        return directoryFile;
+        @Override
+        public void handleMessage(@NonNull Message msg) {
+            super.handleMessage(msg);
+        }
     }
 }

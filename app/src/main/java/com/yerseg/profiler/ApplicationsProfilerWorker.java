@@ -15,7 +15,6 @@ import androidx.work.WorkManager;
 import androidx.work.Worker;
 import androidx.work.WorkerParameters;
 
-import java.io.File;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -43,7 +42,7 @@ public class ApplicationsProfilerWorker extends Worker {
 
     private void doActualWork() {
 
-        FileWriter.writeFile(getProfilingFilesDir(), ProfilingService.APP_STATS_FILE_NAME, getStatisticsForWritingToFile());
+        FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.APP_STATS_FILE_NAME, getStatisticsForWritingToFile());
 
         try {
             OneTimeWorkRequest refreshWork = new OneTimeWorkRequest.Builder(ApplicationsProfilerWorker.class).build();
@@ -129,17 +128,6 @@ public class ApplicationsProfilerWorker extends Worker {
         }
 
         return statistic.toString();
-    }
-
-    private File getProfilingFilesDir() {
-        File filesDirFile = getApplicationContext().getFilesDir();
-
-        File directoryFile = new File(filesDirFile, ProfilingService.PROFILING_STATS_DIRECTORY_NAME);
-        if (!directoryFile.exists()) {
-            directoryFile.mkdir();
-        }
-
-        return directoryFile;
     }
 }
    

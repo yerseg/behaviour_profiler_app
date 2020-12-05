@@ -12,25 +12,28 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
+import android.widget.Toast;
 import android.widget.Toolbar;
 
 import androidx.core.content.ContextCompat;
+import androidx.core.content.FileProvider;
 import androidx.fragment.app.FragmentActivity;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.snackbar.Snackbar;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.nio.channels.FileChannel;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MainActivity extends FragmentActivity {
 
+    public final static String TEMP_DIR_PATH_WORKER_DATA_ID = "com.yerseg.profiler.TEMP_DIR_PATH_WORKER_DATA_ID";
     private final static int REQUEST_ENABLE_BT = 1;
     private final static int PERMISSIONS_REQUEST_ID = 1001;
-
+    private final static String PUSH_SEND_FILES_WORK_TAG = "com.yerseg.profiler.SEND_FILES_WORK";
+    public static AtomicBoolean isTempDirectoryFree = new AtomicBoolean(true);
     Intent mProfilingServiceIntent;
     boolean mIsPermissionsGranted = false;
 
@@ -87,7 +90,7 @@ public class MainActivity extends FragmentActivity {
         emailSendButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                sendFilesByEmail();
+                onSendButtonClick();
             }
         });
     }
@@ -189,83 +192,58 @@ public class MainActivity extends FragmentActivity {
         return super.onOptionsItemSelected(item);
     }
 
-    private File getProfilingFilesDir() {
-        File filesDirFile = getApplicationContext().getFilesDir();
-
-        File directoryFile = new File(filesDirFile, ProfilingService.PROFILING_STATS_DIRECTORY_NAME);
-        if (!directoryFile.exists()) {
-            directoryFile.mkdir();
-        }
-
-        return directoryFile;
-    }
-
-    private void moveFile(File src, File dst) throws IOException {
-        FileChannel inChannel = new FileInputStream(src).getChannel();
-        FileChannel outChannel = new FileOutputStream(dst).getChannel();
-
-        try {
-            inChannel.transferTo(0, inChannel.size(), outChannel);
-            inChannel.close();
-            outChannel.close();
-
-            if (src.exists()) {
-                src.delete();
-            }
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        } finally {
-            if (inChannel != null)
-                inChannel.close();
-            if (outChannel != null)
-                outChannel.close();
-        }
-    }
-
-    private void sendFilesByEmail() {
-        String[] dataFilesNames = {
-                ProfilingService.APP_STATS_FILE_NAME,
-                ProfilingService.BLUETOOTH_STATS_FILE_NAME,
-                ProfilingService.LOCATION_STATS_FILE_NAME,
-                ProfilingService.WIFI_STATS_FILE_NAME
-        };
-
-        File directory = getProfilingFilesDir();
-
-        if (directory.exists()) {
-            File externalDir = getApplicationContext().getExternalFilesDir(null);
-            for (String fileName : dataFilesNames) {
-                MutexHolder.getMutex().lock();
-                try {
-                    moveFile(new File(getProfilingFilesDir(), fileName), new File(externalDir, fileName));
-                } catch (Exception ex) {
-                    ex.printStackTrace();
-                } finally {
-                    MutexHolder.getMutex().unlock();
-                }
-            }
-
+    private void moveDataFilesToTempDirectory(String[] dataFilesNames) {
+        for (String fileName : dataFilesNames) {
             try {
-                for (String fileName : dataFilesNames) {
-                    File file = new File(externalDir, fileName);
-                    if (file.exists()) {
-                        Uri path = Uri.fromFile(file);
-                        Intent emailIntent = new Intent(Intent.ACTION_SEND);
-
-                        emailIntent.setType("vnd.android.cursor.dir/email");
-                        String to[] = {"cergei.kazmin@gmail.com"};
-                        emailIntent.putExtra(Intent.EXTRA_EMAIL, to);
-
-                        emailIntent.putExtra(Intent.EXTRA_STREAM, path);
-
-                        emailIntent.putExtra(Intent.EXTRA_SUBJECT, "Subject");
-                        startActivity(Intent.createChooser(emailIntent, "Send email..."));
-                    }
-                }
-
+                Utils.moveFile(new File(Utils.getProfilingFilesDir(getApplicationContext()), fileName), new File(Utils.getTempDataFilesDir(getApplicationContext()), fileName));
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
+        }
+    }
+
+    private void onSendButtonClick() {
+        if (isTempDirectoryFree.get()) {
+            File tempDir = Utils.getTempDataFilesDir(getApplicationContext());
+
+            MutexHolder.getMutex().lock();
+            try {
+                moveDataFilesToTempDirectory(ProfilingService.STAT_FILE_NAMES);
+            } catch (Exception e) {
+                e.printStackTrace();
+            } finally {
+                MutexHolder.getMutex().unlock();
+            }
+
+            List<File> filesList = new LinkedList<File>();
+
+            for (String fileName : ProfilingService.STAT_FILE_NAMES) {
+                filesList.add(new File(tempDir, fileName));
+            }
+
+            File zip = Utils.createZip(filesList, tempDir);
+
+            try {
+                if (zip.exists()) {
+                    Uri contentUri = FileProvider.getUriForFile(getApplicationContext(), "com.yerseg.profiler", zip);
+                    Intent emailIntent = new Intent(Intent.ACTION_SEND);
+
+                    emailIntent.setType("vnd.android.cursor.dir/email");
+                    String to[] = {"cergei.kazmin@gmail.com"};
+                    emailIntent.putExtra(Intent.EXTRA_EMAIL, to);
+
+                    emailIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
+
+                    emailIntent.putExtra(Intent.EXTRA_SUBJECT, "Subject");
+                    startActivity(Intent.createChooser(emailIntent, "Send email..."));
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+
+            MainActivity.isTempDirectoryFree.set(true);
+        } else {
+            Toast.makeText(getApplicationContext(), "Sending failed! Try later!", Toast.LENGTH_LONG);
         }
     }
 }
