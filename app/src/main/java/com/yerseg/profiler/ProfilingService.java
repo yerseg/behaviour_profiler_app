@@ -96,6 +96,14 @@ public class ProfilingService extends Service {
         super.onStartCommand(intent, flags, startId);
         Log.d("Profiler [Service]", String.format(Locale.getDefault(), "\t%d\tonStartCommand()", Process.myTid()));
 
+        ScreenStatusBroadcastReceiver screenStatusBroadcastReceiver = new ScreenStatusBroadcastReceiver();
+
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(Intent.ACTION_USER_PRESENT);
+        intentFilter.addAction(Intent.ACTION_SHUTDOWN);
+
+        getApplicationContext().registerReceiver(screenStatusBroadcastReceiver, intentFilter);
+
         startLocationTracking();
         startWifiTracking();
         startBluetoothTracking();

@@ -36,6 +36,13 @@
             android:name="com.yerseg.profiler.ProfilingService"
             android:foregroundServiceType="location" />
 
+        <!--<receiver android:name=".ScreenStatusBroadcastReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.USER_PRESENT" />
+                <action android:name="android.intent.action.ACTION_SHUTDOWN" />
+            </intent-filter>
+        </receiver>-->
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="com.yerseg.profiler"

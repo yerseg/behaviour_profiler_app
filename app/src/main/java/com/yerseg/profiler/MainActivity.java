@@ -2,10 +2,14 @@ package com.yerseg.profiler;
 
 import android.Manifest;
 import android.app.AppOpsManager;
+import android.bluetooth.BluetoothAdapter;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.location.LocationManager;
 import android.net.Uri;
+import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.os.Process;
 import android.provider.Settings;
@@ -38,8 +42,6 @@ public class MainActivity extends FragmentActivity {
     Intent mProfilingServiceIntent;
     boolean mIsPermissionsGranted = false;
 
-    //private ProgressBar sendZipProgressBar;
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -54,9 +56,37 @@ public class MainActivity extends FragmentActivity {
         startButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                if (!mIsPermissionsGranted) {
+                    showLongToast("Grant permission please!");
+                    requestPermissions();
+                    return;
+                }
+
                 if (!isUsageStatsPermissionsGranted()) {
                     Intent intent = new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS);
+                    showLongToast("Grant action usage permission please!");
                     startActivityForResult(intent, 1);
+                    return;
+                }
+
+                WifiManager wifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
+                if (!wifiManager.isWifiEnabled()) {
+                    showLongToast("Turn on WiFi please!");
+                    return;
+                }
+
+                BluetoothAdapter mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+                if (mBluetoothAdapter == null || !mBluetoothAdapter.isEnabled()) {
+                    showLongToast("Turn on Bluetooth please!");
+                    return;
+                }
+
+                LocationManager locationManager = (LocationManager) getApplicationContext().getSystemService(Context.LOCATION_SERVICE);
+                if (!locationManager.isLocationEnabled() ||
+                        !locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
+                        !locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
+                    showLongToast("Turn on location services please!");
+                    return;
                 }
 
                 startService();
@@ -172,7 +202,7 @@ public class MainActivity extends FragmentActivity {
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        if (requestCode == 1001 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+        if (requestCode == PERMISSIONS_REQUEST_ID && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
             mIsPermissionsGranted = true;
         } else {
             mIsPermissionsGranted = false;
@@ -199,6 +229,10 @@ public class MainActivity extends FragmentActivity {
         }
 
         return super.onOptionsItemSelected(item);
+    }
+
+    private void showLongToast(String text) {
+        Toast.makeText(getApplicationContext(), text, Toast.LENGTH_LONG);
     }
 
     private void moveDataFilesToTempDirectory(String[] dataFilesNames) {
@@ -241,7 +275,7 @@ public class MainActivity extends FragmentActivity {
             if (zip.exists()) {
                 Intent sendStatsIntent = new Intent(Intent.ACTION_SEND);
 
-                String[] to = { "cergei.kazmin@gmail.com" };
+                String[] to = {"cergei.kazmin@gmail.com"};
                 Uri contentUri = FileProvider.getUriForFile(getApplicationContext(), "com.yerseg.profiler", zip);
 
                 sendStatsIntent.setType("application/zip");
