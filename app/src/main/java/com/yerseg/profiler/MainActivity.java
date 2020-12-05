@@ -4,14 +4,19 @@ import android.Manifest;
 import android.app.AppOpsManager;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Process;
 import android.provider.Settings;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.widget.Toast;
 import android.widget.Toolbar;
 
 import androidx.core.content.ContextCompat;
@@ -19,11 +24,11 @@ import androidx.core.content.FileProvider;
 import androidx.fragment.app.FragmentActivity;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
-import com.google.android.material.snackbar.Snackbar;
 
 import java.io.File;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 
 public class MainActivity extends FragmentActivity {
 
@@ -32,6 +37,8 @@ public class MainActivity extends FragmentActivity {
 
     Intent mProfilingServiceIntent;
     boolean mIsPermissionsGranted = false;
+
+    //private ProgressBar sendZipProgressBar;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -59,7 +66,6 @@ public class MainActivity extends FragmentActivity {
             }
         });
 
-
         stopButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -70,23 +76,30 @@ public class MainActivity extends FragmentActivity {
             }
         });
 
-        FloatingActionButton sendDataByEmailButton = findViewById(R.id.SendDataByEmailButton);
-        sendDataByEmailButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
-                        .setAction("Action", null).show();
-            }
-        });
-
         TextView textView = findViewById(R.id.textInstruction);
         textView.setVisibility(View.VISIBLE);
+
+        ProgressBar sendZipProgressBar = findViewById(R.id.sendZipProgressBar);
 
         FloatingActionButton emailSendButton = findViewById(R.id.SendDataByEmailButton);
         emailSendButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                onSendButtonClick();
+                sendZipProgressBar.setVisibility(View.VISIBLE);
+                emailSendButton.setEnabled(false);
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        onSendButtonClick();
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                sendZipProgressBar.setVisibility(View.GONE);
+                                emailSendButton.setEnabled(true);
+                            }
+                        });
+                    }
+                }).start();
             }
         });
     }
@@ -199,47 +212,58 @@ public class MainActivity extends FragmentActivity {
     }
 
     private void onSendButtonClick() {
-        File tempDir = Utils.getTempDataFilesDir(getApplicationContext());
-        if (tempDir.exists())
-            tempDir.delete();
-
-        MutexHolder.getMutex().lock();
-        try {
-            moveDataFilesToTempDirectory(ProfilingService.STAT_FILE_NAMES);
-        } catch (Exception e) {
-            e.printStackTrace();
-        } finally {
-            MutexHolder.getMutex().unlock();
-        }
-
-        List<File> filesList = new LinkedList<File>();
-
-        for (String fileName : ProfilingService.STAT_FILE_NAMES) {
-            File file = new File(tempDir, fileName);
-            if (file.exists())
-                filesList.add(file);
-        }
-
-        File zip = Utils.createZip(filesList, tempDir);
+        Log.d("Profiler [MainActivity]", String.format(Locale.getDefault(), "\t%d\tonSendButtonClick()", Process.myTid()));
 
         try {
+            File tempDir = Utils.getTempDataFilesDir(getApplicationContext());
+            if (tempDir.exists())
+                tempDir.delete();
+
+            MutexHolder.getMutex().lock();
+            try {
+                moveDataFilesToTempDirectory(ProfilingService.STAT_FILE_NAMES);
+            } catch (Exception e) {
+                e.printStackTrace();
+            } finally {
+                MutexHolder.getMutex().unlock();
+            }
+
+            List<File> filesList = new LinkedList<File>();
+
+            for (String fileName : ProfilingService.STAT_FILE_NAMES) {
+                File file = new File(tempDir, fileName);
+                if (file.exists())
+                    filesList.add(file);
+            }
+
+            File zip = Utils.createZip(filesList, tempDir);
+
             if (zip.exists()) {
+                Intent sendStatsIntent = new Intent(Intent.ACTION_SEND);
+
+                String[] to = { "cergei.kazmin@gmail.com" };
                 Uri contentUri = FileProvider.getUriForFile(getApplicationContext(), "com.yerseg.profiler", zip);
-                Intent emailIntent = new Intent(Intent.ACTION_SEND);
 
-                emailIntent.setType("vnd.android.cursor.dir/email");
-                String to[] = {"cergei.kazmin@gmail.com"};
-                emailIntent.putExtra(Intent.EXTRA_EMAIL, to);
+                sendStatsIntent.setType("application/zip");
+                sendStatsIntent.setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                sendStatsIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
+                sendStatsIntent.putExtra(Intent.EXTRA_EMAIL, to);
+                sendStatsIntent.putExtra(Intent.EXTRA_SUBJECT, "[IMP] Profiling stats");
+                sendStatsIntent.putExtra(Intent.EXTRA_TEXT, "Sending profiling stats");
+                sendStatsIntent.setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
 
-                emailIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
+                Intent chooser = Intent.createChooser(sendStatsIntent, "Send stats");
+                List<ResolveInfo> resolveInfoList = this.getPackageManager().queryIntentActivities(chooser, PackageManager.MATCH_DEFAULT_ONLY);
+                for (ResolveInfo resolveInfo : resolveInfoList) {
+                    String packageName = resolveInfo.activityInfo.packageName;
+                    this.grantUriPermission(packageName, contentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                }
 
-                emailIntent.putExtra(Intent.EXTRA_SUBJECT, "Subject");
-                startActivity(Intent.createChooser(emailIntent, "Send email..."));
+                startActivity(chooser);
             }
         } catch (Exception ex) {
+            Toast.makeText(getApplicationContext(), "Sending failed! Try again!", Toast.LENGTH_LONG);
             ex.printStackTrace();
         }
-
-        //Toast.makeText(getApplicationContext(), "Sending failed! Try later!", Toast.LENGTH_LONG);
     }
 }
