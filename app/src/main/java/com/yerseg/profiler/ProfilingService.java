@@ -170,7 +170,7 @@ public class ProfilingService extends Service {
                                 location.getLongitude(),
                                 location.getProvider()
                         );
-                        FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), LOCATION_STATS_FILE_NAME, locationStats);
+                        Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), LOCATION_STATS_FILE_NAME, locationStats);
                     }
                 }, mServiceLooper);
             }
@@ -208,7 +208,7 @@ public class ProfilingService extends Service {
                                 result.is80211mcResponder(),
                                 result.isPasspointNetwork());
 
-                        FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), WIFI_STATS_FILE_NAME, wifiStats);
+                        Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), WIFI_STATS_FILE_NAME, wifiStats);
                     }
                 }
             }
@@ -238,7 +238,7 @@ public class ProfilingService extends Service {
                             device.getBondState(),
                             device.getType());
 
-                    FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), BLUETOOTH_STATS_FILE_NAME, bluetoothStats);
+                    Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), BLUETOOTH_STATS_FILE_NAME, bluetoothStats);
                 }
             }
         };

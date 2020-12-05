@@ -42,7 +42,7 @@ public class ApplicationsProfilerWorker extends Worker {
 
     private void doActualWork() {
 
-        FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.APP_STATS_FILE_NAME, getStatisticsForWritingToFile());
+        Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.APP_STATS_FILE_NAME, getStatisticsForWritingToFile());
 
         try {
             OneTimeWorkRequest refreshWork = new OneTimeWorkRequest.Builder(ApplicationsProfilerWorker.class).build();
@@ -60,7 +60,7 @@ public class ApplicationsProfilerWorker extends Worker {
         UsageStatsManager usageStatsManager = (UsageStatsManager) mContext.getSystemService(Context.USAGE_STATS_SERVICE);
 
         String statResponseId = UUID.randomUUID().toString();
-        String timestamp = ProfilingService.GetTimeStamp(endTime);
+        String timestamp = Utils.GetTimeStamp(endTime);
 
         StringBuilder statistic = new StringBuilder();
 

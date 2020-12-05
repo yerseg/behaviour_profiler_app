@@ -1,6 +1,7 @@
 package com.yerseg.profiler;
 
 import android.content.Context;
+import android.os.Process;
 import android.util.Log;
 
 import java.io.BufferedInputStream;
@@ -19,41 +20,6 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 public class Utils {
-
-    public static class Zipper {
-        private static final int BUFFER = 2048;
-
-        public static void zip(List<File> files, File zipFile) {
-            try {
-                BufferedInputStream origin = null;
-                FileOutputStream dest = new FileOutputStream(zipFile);
-                ZipOutputStream out = new ZipOutputStream(new BufferedOutputStream(dest));
-
-                byte data[] = new byte[BUFFER];
-
-                for (File file : files) {
-                    Log.v("Compress", "Adding: " + file);
-
-                    FileInputStream fi = new FileInputStream(file);
-                    origin = new BufferedInputStream(fi, BUFFER);
-                    ZipEntry entry = new ZipEntry(file.getName());
-                    out.putNextEntry(entry);
-
-                    int count = -1;
-                    while ((count = origin.read(data, 0, BUFFER)) != -1) {
-                        out.write(data, 0, count);
-                    }
-
-                    origin.close();
-                }
-
-                out.finish();
-                out.close();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-    }
 
     public static String GetTimeStamp(long time) {
         return new SimpleDateFormat("dd.MM.yyyy_HH:mm:ss.SSS").format(new Date(time));
@@ -102,12 +68,72 @@ public class Utils {
     }
 
     public static File createZip(List<File> files, File tempDir) {
-        String zipName = String.format(Locale.getDefault(), "report_%s_%s.zip",
-                Utils.GetTimeStamp(System.currentTimeMillis()),
+        String zipName = String.format(Locale.getDefault(), "report_%s.zip",
                 UUID.randomUUID().toString());
 
         File zipFile = new File(tempDir, zipName);
         Zipper.zip(files, zipFile);
         return zipFile;
+    }
+
+    public static class FileWriter {
+        public static void writeFile(File directory, String fileName, String data) {
+            Log.d("Profiler [FileWriter]", String.format(Locale.getDefault(), "\t%d\twriteFile()", Process.myTid()));
+
+            try {
+                MutexHolder.getMutex().lock();
+
+                File file = new File(directory, fileName);
+                java.io.FileWriter writer = new java.io.FileWriter(file, true);
+
+                writer.append(data);
+                writer.flush();
+                writer.close();
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            } finally {
+                MutexHolder.getMutex().unlock();
+            }
+        }
+    }
+
+    public static class Zipper {
+        private static final int BUFFER = 2048;
+
+        public static void zip(List<File> files, File zipFile) {
+            try {
+                BufferedInputStream origin = null;
+                FileOutputStream dest = new FileOutputStream(zipFile);
+                ZipOutputStream out = new ZipOutputStream(new BufferedOutputStream(dest));
+
+                byte data[] = new byte[BUFFER];
+
+                for (File file : files) {
+                    try {
+                        Log.v("Compress", "Adding: " + file);
+
+                        FileInputStream fi = new FileInputStream(file);
+                        origin = new BufferedInputStream(fi, BUFFER);
+                        ZipEntry entry = new ZipEntry(file.getName());
+                        out.putNextEntry(entry);
+
+                        int count = -1;
+                        while ((count = origin.read(data, 0, BUFFER)) != -1) {
+                            out.write(data, 0, count);
+                        }
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                    } finally {
+                        origin.close();
+                    }
+                }
+
+                out.finish();
+                out.close();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
     }
 }

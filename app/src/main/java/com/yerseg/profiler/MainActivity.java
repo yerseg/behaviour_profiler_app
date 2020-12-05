@@ -12,7 +12,6 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
-import android.widget.Toast;
 import android.widget.Toolbar;
 
 import androidx.core.content.ContextCompat;
@@ -25,15 +24,12 @@ import com.google.android.material.snackbar.Snackbar;
 import java.io.File;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MainActivity extends FragmentActivity {
 
-    public final static String TEMP_DIR_PATH_WORKER_DATA_ID = "com.yerseg.profiler.TEMP_DIR_PATH_WORKER_DATA_ID";
     private final static int REQUEST_ENABLE_BT = 1;
     private final static int PERMISSIONS_REQUEST_ID = 1001;
-    private final static String PUSH_SEND_FILES_WORK_TAG = "com.yerseg.profiler.SEND_FILES_WORK";
-    public static AtomicBoolean isTempDirectoryFree = new AtomicBoolean(true);
+
     Intent mProfilingServiceIntent;
     boolean mIsPermissionsGranted = false;
 
@@ -203,47 +199,47 @@ public class MainActivity extends FragmentActivity {
     }
 
     private void onSendButtonClick() {
-        if (isTempDirectoryFree.get()) {
-            File tempDir = Utils.getTempDataFilesDir(getApplicationContext());
+        File tempDir = Utils.getTempDataFilesDir(getApplicationContext());
+        if (tempDir.exists())
+            tempDir.delete();
 
-            MutexHolder.getMutex().lock();
-            try {
-                moveDataFilesToTempDirectory(ProfilingService.STAT_FILE_NAMES);
-            } catch (Exception e) {
-                e.printStackTrace();
-            } finally {
-                MutexHolder.getMutex().unlock();
-            }
-
-            List<File> filesList = new LinkedList<File>();
-
-            for (String fileName : ProfilingService.STAT_FILE_NAMES) {
-                filesList.add(new File(tempDir, fileName));
-            }
-
-            File zip = Utils.createZip(filesList, tempDir);
-
-            try {
-                if (zip.exists()) {
-                    Uri contentUri = FileProvider.getUriForFile(getApplicationContext(), "com.yerseg.profiler", zip);
-                    Intent emailIntent = new Intent(Intent.ACTION_SEND);
-
-                    emailIntent.setType("vnd.android.cursor.dir/email");
-                    String to[] = {"cergei.kazmin@gmail.com"};
-                    emailIntent.putExtra(Intent.EXTRA_EMAIL, to);
-
-                    emailIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
-
-                    emailIntent.putExtra(Intent.EXTRA_SUBJECT, "Subject");
-                    startActivity(Intent.createChooser(emailIntent, "Send email..."));
-                }
-            } catch (Exception ex) {
-                ex.printStackTrace();
-            }
-
-            MainActivity.isTempDirectoryFree.set(true);
-        } else {
-            Toast.makeText(getApplicationContext(), "Sending failed! Try later!", Toast.LENGTH_LONG);
+        MutexHolder.getMutex().lock();
+        try {
+            moveDataFilesToTempDirectory(ProfilingService.STAT_FILE_NAMES);
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            MutexHolder.getMutex().unlock();
         }
+
+        List<File> filesList = new LinkedList<File>();
+
+        for (String fileName : ProfilingService.STAT_FILE_NAMES) {
+            File file = new File(tempDir, fileName);
+            if (file.exists())
+                filesList.add(file);
+        }
+
+        File zip = Utils.createZip(filesList, tempDir);
+
+        try {
+            if (zip.exists()) {
+                Uri contentUri = FileProvider.getUriForFile(getApplicationContext(), "com.yerseg.profiler", zip);
+                Intent emailIntent = new Intent(Intent.ACTION_SEND);
+
+                emailIntent.setType("vnd.android.cursor.dir/email");
+                String to[] = {"cergei.kazmin@gmail.com"};
+                emailIntent.putExtra(Intent.EXTRA_EMAIL, to);
+
+                emailIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
+
+                emailIntent.putExtra(Intent.EXTRA_SUBJECT, "Subject");
+                startActivity(Intent.createChooser(emailIntent, "Send email..."));
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+
+        //Toast.makeText(getApplicationContext(), "Sending failed! Try later!", Toast.LENGTH_LONG);
     }
 }
