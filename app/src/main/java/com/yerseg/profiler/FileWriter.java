@@ -11,16 +11,12 @@ public class FileWriter {
     {
         Log.d("Profiler [FileWriter]", String.format(Locale.getDefault(), "\t%d\twriteFile()", Process.myTid()));
 
-        File directoryFile = new File(directory, "ProfilingData");
-        if (!directoryFile.exists()) {
-            directoryFile.mkdir();
-        }
-
         try {
-            File file = new File(directoryFile, fileName);
+            MutexHolder.getMutex().lock();
+
+            File file = new File(directory, fileName);
             java.io.FileWriter writer = new java.io.FileWriter(file, true);
 
-            MutexHolder.getMutex().lock();
             writer.append(data);
             writer.flush();
             writer.close();
