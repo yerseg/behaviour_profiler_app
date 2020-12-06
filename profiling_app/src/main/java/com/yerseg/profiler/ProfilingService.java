@@ -99,18 +99,19 @@ public class ProfilingService extends Service {
         mServiceHandler = new ServiceHandler(mServiceLooper);
 
         createNotificationChannel();
-
-        startScreenStateTracking();
-        startLocationTracking();
-        startWifiTracking();
-        startBluetoothTracking();
-        startApplicationsStatisticTracking();
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         super.onStartCommand(intent, flags, startId);
         Log.d("Profiler [Service]", String.format(Locale.getDefault(), "\t%d\tonStartCommand()", Process.myTid()));
+
+        startScreenStateTracking();
+        startLocationTracking();
+        startWifiTracking();
+        startBluetoothTracking();
+        startApplicationsStatisticTracking();
+
         return START_STICKY;
     }
 
