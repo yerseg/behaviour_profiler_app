@@ -59,12 +59,14 @@ public class ProfilingService extends Service {
     public static final String APP_STATS_FILE_NAME = "app.data";
     public static final String BLUETOOTH_STATS_FILE_NAME = "bt.data";
     public static final String LOCATION_STATS_FILE_NAME = "location.data";
+    public static final String SCREEN_STATE_STATS_FILE_NAME = "screen.data";
     public static final String WIFI_STATS_FILE_NAME = "wifi.data";
 
     public static final String[] STAT_FILE_NAMES = {
             APP_STATS_FILE_NAME,
             BLUETOOTH_STATS_FILE_NAME,
             LOCATION_STATS_FILE_NAME,
+            SCREEN_STATE_STATS_FILE_NAME,
             WIFI_STATS_FILE_NAME
     };
 
@@ -96,14 +98,7 @@ public class ProfilingService extends Service {
         super.onStartCommand(intent, flags, startId);
         Log.d("Profiler [Service]", String.format(Locale.getDefault(), "\t%d\tonStartCommand()", Process.myTid()));
 
-        ScreenStatusBroadcastReceiver screenStatusBroadcastReceiver = new ScreenStatusBroadcastReceiver();
-
-        IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction(Intent.ACTION_USER_PRESENT);
-        intentFilter.addAction(Intent.ACTION_SHUTDOWN);
-
-        getApplicationContext().registerReceiver(screenStatusBroadcastReceiver, intentFilter);
-
+        startScreenStateTracking();
         startLocationTracking();
         startWifiTracking();
         startBluetoothTracking();
@@ -192,32 +187,37 @@ public class ProfilingService extends Service {
             @Override
             public void onReceive(Context c, Intent intent) {
                 if (intent.getBooleanExtra(WifiManager.EXTRA_RESULTS_UPDATED, false)) {
-                    final WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-                    List<ScanResult> scanResults = wifiManager.getScanResults();
+                    new Thread(new Runnable() {
+                        @Override
+                        public void run() {
+                            final WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+                            List<ScanResult> scanResults = wifiManager.getScanResults();
 
-                    String statResponseId = UUID.randomUUID().toString();
-                    String timestamp = Utils.GetTimeStamp(System.currentTimeMillis());
+                            String statResponseId = UUID.randomUUID().toString();
+                            String timestamp = Utils.GetTimeStamp(System.currentTimeMillis());
 
-                    for (ScanResult result : scanResults) {
-                        String wifiStats = String.format(Locale.getDefault(), "%s,%s,%s,%s,%s,%d,%d,%d,%d,%d,%s,%d,%s,%b,%b\n",
-                                timestamp,
-                                statResponseId,
-                                result.BSSID,
-                                result.SSID,
-                                result.capabilities,
-                                result.centerFreq0,
-                                result.centerFreq1,
-                                result.channelWidth,
-                                result.frequency,
-                                result.level,
-                                result.operatorFriendlyName,
-                                result.timestamp,
-                                result.venueName,
-                                result.is80211mcResponder(),
-                                result.isPasspointNetwork());
+                            for (ScanResult result : scanResults) {
+                                String wifiStats = String.format(Locale.getDefault(), "%s,%s,%s,%s,%s,%d,%d,%d,%d,%d,%s,%d,%s,%b,%b\n",
+                                        timestamp,
+                                        statResponseId,
+                                        result.BSSID,
+                                        result.SSID,
+                                        result.capabilities,
+                                        result.centerFreq0,
+                                        result.centerFreq1,
+                                        result.channelWidth,
+                                        result.frequency,
+                                        result.level,
+                                        result.operatorFriendlyName,
+                                        result.timestamp,
+                                        result.venueName,
+                                        result.is80211mcResponder(),
+                                        result.isPasspointNetwork());
 
-                        Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), WIFI_STATS_FILE_NAME, wifiStats);
-                    }
+                                Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), WIFI_STATS_FILE_NAME, wifiStats);
+                            }
+                        }
+                    }).start();
                 }
             }
         };
@@ -237,16 +237,21 @@ public class ProfilingService extends Service {
                 if (BluetoothDevice.ACTION_FOUND.equals(action)) {
                     BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
 
-                    String bluetoothStats = String.format(Locale.getDefault(), "%s,%s,%s,%d,%d,%d,%d\n",
-                            Utils.GetTimeStamp(System.currentTimeMillis()),
-                            device.getName(),
-                            device.getAddress(),
-                            device.getBluetoothClass().getMajorDeviceClass(),
-                            device.getBluetoothClass().getDeviceClass(),
-                            device.getBondState(),
-                            device.getType());
+                    new Thread(new Runnable() {
+                        @Override
+                        public void run() {
+                            String bluetoothStats = String.format(Locale.getDefault(), "%s,%s,%s,%d,%d,%d,%d\n",
+                                    Utils.GetTimeStamp(System.currentTimeMillis()),
+                                    device.getName(),
+                                    device.getAddress(),
+                                    device.getBluetoothClass().getMajorDeviceClass(),
+                                    device.getBluetoothClass().getDeviceClass(),
+                                    device.getBondState(),
+                                    device.getType());
 
-                    Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), BLUETOOTH_STATS_FILE_NAME, bluetoothStats);
+                            Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), BLUETOOTH_STATS_FILE_NAME, bluetoothStats);
+                        }
+                    }).start();
                 }
             }
         };
@@ -261,6 +266,54 @@ public class ProfilingService extends Service {
     private void startApplicationsStatisticTracking() {
         OneTimeWorkRequest refreshWork = new OneTimeWorkRequest.Builder(ApplicationsProfilerWorker.class).build();
         WorkManager.getInstance(getApplicationContext()).enqueueUniqueWork(PUSH_APP_STAT_SCAN_WORK_TAG, ExistingWorkPolicy.KEEP, refreshWork);
+    }
+
+    private void startScreenStateTracking() {
+        final BroadcastReceiver screenStatusBroadcastReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                String intentActionName = "";
+
+                if (intent.getAction().equals(Intent.ACTION_USER_PRESENT)) {
+                    intentActionName = "ACTION_USER_PRESENT";
+                } else if (intent.getAction().equals(Intent.ACTION_SHUTDOWN)) {
+                    intentActionName = "ACTION_SHUTDOWN";
+                } else if (intent.getAction().equals(Intent.ACTION_DREAMING_STARTED)) {
+                    intentActionName = "ACTION_DREAMING_STARTED";
+                } else if (intent.getAction().equals(Intent.ACTION_DREAMING_STOPPED)) {
+                    intentActionName = "ACTION_DREAMING_STOPPED";
+                } else if (intent.getAction().equals(Intent.ACTION_REBOOT)) {
+                    intentActionName = "ACTION_REBOOT";
+                } else if (intent.getAction().equals(Intent.ACTION_SCREEN_OFF)) {
+                    intentActionName = "ACTION_SCREEN_OFF";
+                } else if (intent.getAction().equals(Intent.ACTION_SCREEN_ON)) {
+                    intentActionName = "ACTION_SCREEN_ON";
+                } else if (intent.getAction().equals(Intent.ACTION_USER_UNLOCKED)) {
+                    intentActionName = "ACTION_USER_UNLOCKED";
+                }
+
+                final String finalIntentActionName = intentActionName;
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        String screenStats = String.format(Locale.getDefault(), "%s,%s", Utils.GetTimeStamp(System.currentTimeMillis()), finalIntentActionName);
+                        Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), SCREEN_STATE_STATS_FILE_NAME, screenStats);
+                    }
+                }).run();
+            }
+        };
+
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(Intent.ACTION_USER_PRESENT);
+        intentFilter.addAction(Intent.ACTION_SHUTDOWN);
+        intentFilter.addAction(Intent.ACTION_DREAMING_STARTED);
+        intentFilter.addAction(Intent.ACTION_DREAMING_STOPPED);
+        intentFilter.addAction(Intent.ACTION_REBOOT);
+        intentFilter.addAction(Intent.ACTION_SCREEN_OFF);
+        intentFilter.addAction(Intent.ACTION_SCREEN_ON);
+        intentFilter.addAction(Intent.ACTION_USER_UNLOCKED);
+
+        getApplicationContext().registerReceiver(screenStatusBroadcastReceiver, intentFilter);
     }
 
     private final class ServiceHandler extends Handler {
