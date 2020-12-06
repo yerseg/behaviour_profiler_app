@@ -3,23 +3,34 @@ plugins {
 }
 
 android {
-    compileSdkVersion 30
+    signingConfigs {
+        release {
+            storeFile file('D:\\Dev\\AndroidStudioProjects\\key_storage\\keys_st_2.jks')
+            storePassword 'victoryCM2010'
+            keyAlias 'yerseg_key'
+            keyPassword 'victoryCM2010'
+        }
+    }
+    compileSdkVersion 29
     buildToolsVersion "30.0.2"
 
     defaultConfig {
         applicationId "com.yerseg.profiler"
         minSdkVersion 28
-        targetSdkVersion 30
+        targetSdkVersion 29
         versionCode 1
         versionName "1.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        versionNameSuffix 'beta'
+        signingConfig signingConfigs.release
     }
 
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            versionNameSuffix 'beta'
         }
     }
     compileOptions {
@@ -36,7 +47,7 @@ dependencies {
     implementation 'androidx.navigation:navigation-fragment:2.3.1'
     implementation 'androidx.navigation:navigation-ui:2.3.1'
     implementation 'com.google.android.gms:play-services-location:17.1.0'
-    testImplementation 'junit:junit:4.+'
+    testImplementation 'junit:junit:4.13.1'
     androidTestImplementation 'androidx.test.ext:junit:1.1.2'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.3.0'
 }

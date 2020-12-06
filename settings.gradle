@@ -1,2 +1,2 @@
-include ':app'
+include ':profiling_app'
 rootProject.name = "Profiler"
