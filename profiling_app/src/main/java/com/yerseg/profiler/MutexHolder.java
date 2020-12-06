@@ -1,7 +1,6 @@
-package com.example.myapplication;
+package com.yerseg.profiler;
 
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class MutexHolder {
     private static volatile ReentrantLock mutex;
@@ -9,7 +8,7 @@ public class MutexHolder {
     public static ReentrantLock getMutex() {
         ReentrantLock localInstance = mutex;
         if (localInstance == null) {
-            synchronized (ReentrantReadWriteLock.class) {
+            synchronized (ReentrantLock.class) {
                 localInstance = mutex;
                 if (localInstance == null) {
                     mutex = localInstance = new ReentrantLock();

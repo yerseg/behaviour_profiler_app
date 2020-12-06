@@ -6,9 +6,7 @@ import android.app.usage.UsageStats;
 import android.app.usage.UsageStatsManager;
 import android.content.Context;
 import android.content.res.Configuration;
-import android.os.Process;
 import android.os.SystemClock;
-import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.work.ExistingWorkPolicy;
@@ -17,8 +15,6 @@ import androidx.work.WorkManager;
 import androidx.work.Worker;
 import androidx.work.WorkerParameters;
 
-import java.io.File;
-import java.io.FileWriter;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -46,33 +42,32 @@ public class ApplicationsProfilerWorker extends Worker {
 
     private void doActualWork() {
 
-        writeFileOnInternalStorage("app.data", getStatisticsForWritingToFile());
+        Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.APP_STATS_FILE_NAME, getStatisticsForWritingToFile());
 
-        try {
-            OneTimeWorkRequest refreshWork = new OneTimeWorkRequest.Builder(ApplicationsProfilerWorker.class).build();
-            WorkManager.getInstance(mContext).enqueueUniqueWork(ProfilingService.PUSH_APP_STAT_SCAN_WORK_TAG, ExistingWorkPolicy.REPLACE, refreshWork);
-        } catch (CancellationException ex) {
-            ex.printStackTrace();
+        if (!ProfilingService.isStopping) {
+            try {
+                OneTimeWorkRequest refreshWork = new OneTimeWorkRequest.Builder(ApplicationsProfilerWorker.class).build();
+                WorkManager.getInstance(mContext).enqueueUniqueWork(ProfilingService.PUSH_APP_STAT_SCAN_WORK_TAG, ExistingWorkPolicy.REPLACE, refreshWork);
+            } catch (CancellationException ex) {
+                ex.printStackTrace();
+            }
         }
-
     }
 
-    private String getStatisticsForWritingToFile()
-    {
+    private String getStatisticsForWritingToFile() {
         long beginTime = java.lang.System.currentTimeMillis() - SystemClock.elapsedRealtime();
         long endTime = java.lang.System.currentTimeMillis();
 
         UsageStatsManager usageStatsManager = (UsageStatsManager) mContext.getSystemService(Context.USAGE_STATS_SERVICE);
 
         String statResponseId = UUID.randomUUID().toString();
-        String timestamp = ProfilingService.GetTimeStamp(endTime);
+        String timestamp = Utils.GetTimeStamp(endTime);
 
         StringBuilder statistic = new StringBuilder();
 
         List<UsageStats> usageStatsList = usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, beginTime, endTime);
 
-        for (UsageStats usageStats : usageStatsList)
-        {
+        for (UsageStats usageStats : usageStatsList) {
             statistic.append(String.format(Locale.getDefault(), "UsageStats,%s,%s,%s,%d,%d,%d,%d\n",
                     timestamp,
                     statResponseId,
@@ -85,8 +80,7 @@ public class ApplicationsProfilerWorker extends Worker {
 
         List<ConfigurationStats> configurationStatsList = usageStatsManager.queryConfigurations(UsageStatsManager.INTERVAL_DAILY, beginTime, endTime);
 
-        for (ConfigurationStats configurationStats : configurationStatsList)
-        {
+        for (ConfigurationStats configurationStats : configurationStatsList) {
             Configuration configuration = configurationStats.getConfiguration();
             statistic.append(String.format(Locale.getDefault(), "ConfigStats,%s,%s,%d,%d,%d,%d,%d,%d,%d,%f,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%s,%b,%b,%b\n",
                     timestamp,
@@ -122,8 +116,7 @@ public class ApplicationsProfilerWorker extends Worker {
 
         List<EventStats> eventStatsList = usageStatsManager.queryEventStats(UsageStatsManager.INTERVAL_DAILY, beginTime, endTime);
 
-        for (EventStats eventStat : eventStatsList)
-        {
+        for (EventStats eventStat : eventStatsList) {
             statistic.append(String.format(Locale.getDefault(), "EventStats,%s,%s,%d,%d,%d,%d,%d,%d\n",
                     timestamp,
                     statResponseId,
@@ -137,28 +130,5 @@ public class ApplicationsProfilerWorker extends Worker {
 
         return statistic.toString();
     }
-
-    private void writeFileOnInternalStorage(String fileName, String body)
-    {
-        Log.d("Profiler [AppStat]", String.format(Locale.getDefault(), "\t%d\twriteFileOnInternalStorage()", Process.myTid()));
-        File directory = new File(getApplicationContext().getFilesDir(), "ProfilingData");
-        if (!directory.exists()) {
-            directory.mkdir();
-        }
-
-        try {
-            File file = new File(directory, fileName);
-            FileWriter writer = new FileWriter(file, true);
-
-            MutexHolder.getMutex().lock();
-            writer.append(body);
-            writer.flush();
-            MutexHolder.getMutex().unlock();
-
-            writer.close();
-        } catch (Exception e) {
-            MutexHolder.getMutex().unlock();
-            e.printStackTrace();
-        }
-    }
 }
+   
