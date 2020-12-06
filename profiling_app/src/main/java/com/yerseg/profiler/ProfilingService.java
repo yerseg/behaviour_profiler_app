@@ -75,6 +75,10 @@ public class ProfilingService extends Service {
     private Looper mServiceLooper;
     private ServiceHandler mServiceHandler;
 
+    private BroadcastReceiver mScreenStatusBroadcastReceiver;
+    private BroadcastReceiver mWifiScanReceiver;
+    private BroadcastReceiver mBluetoothBroadcastReceiver;
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -112,12 +116,18 @@ public class ProfilingService extends Service {
         Log.d("Profiler [Service]", String.format(Locale.getDefault(), "\t%d\tonDestroy()", Process.myTid()));
         super.onDestroy();
 
-        synchronized (this) {
-            isRunning = false;
-        }
+        stopScreenStateTracking();
+        stopLocationTracking();
+        stopWifiTracking();
+        stopBluetoothTracking();
+        stopApplicationsStatisticTracking();
 
         NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         notificationManager.cancel(1);
+
+        synchronized (this) {
+            isRunning = false;
+        }
     }
 
     @Nullable
@@ -183,7 +193,7 @@ public class ProfilingService extends Service {
     private void startWifiTracking() {
         final WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
 
-        BroadcastReceiver wifiScanReceiver = new BroadcastReceiver() {
+        mWifiScanReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context c, Intent intent) {
                 if (intent.getBooleanExtra(WifiManager.EXTRA_RESULTS_UPDATED, false)) {
@@ -223,15 +233,14 @@ public class ProfilingService extends Service {
         };
 
         IntentFilter intentFilter = new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION);
-        getApplicationContext().registerReceiver(wifiScanReceiver, intentFilter);
+        getApplicationContext().registerReceiver(mWifiScanReceiver, intentFilter);
 
         OneTimeWorkRequest refreshWork = new OneTimeWorkRequest.Builder(WifiProfilingWorker.class).build();
         WorkManager.getInstance(getApplicationContext()).enqueueUniqueWork(PUSH_WIFI_SCAN_WORK_TAG, ExistingWorkPolicy.KEEP, refreshWork);
     }
 
     private void startBluetoothTracking() {
-
-        final BroadcastReceiver receiver = new BroadcastReceiver() {
+        mBluetoothBroadcastReceiver = new BroadcastReceiver() {
             public void onReceive(Context context, Intent intent) {
                 String action = intent.getAction();
                 if (BluetoothDevice.ACTION_FOUND.equals(action)) {
@@ -257,7 +266,7 @@ public class ProfilingService extends Service {
         };
 
         IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
-        registerReceiver(receiver, filter);
+        registerReceiver(mBluetoothBroadcastReceiver, filter);
 
         OneTimeWorkRequest refreshWork = new OneTimeWorkRequest.Builder(BluetoothProfilerWorker.class).build();
         WorkManager.getInstance(getApplicationContext()).enqueueUniqueWork(PUSH_BT_SCAN_WORK_TAG, ExistingWorkPolicy.KEEP, refreshWork);
@@ -269,7 +278,7 @@ public class ProfilingService extends Service {
     }
 
     private void startScreenStateTracking() {
-        final BroadcastReceiver screenStatusBroadcastReceiver = new BroadcastReceiver() {
+        mScreenStatusBroadcastReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
                 String intentActionName = "";
@@ -313,7 +322,35 @@ public class ProfilingService extends Service {
         intentFilter.addAction(Intent.ACTION_SCREEN_ON);
         intentFilter.addAction(Intent.ACTION_USER_UNLOCKED);
 
-        getApplicationContext().registerReceiver(screenStatusBroadcastReceiver, intentFilter);
+        getApplicationContext().registerReceiver(mScreenStatusBroadcastReceiver, intentFilter);
+    }
+
+    void stopScreenStateTracking() {
+        if (mScreenStatusBroadcastReceiver != null)
+            unregisterReceiver(mScreenStatusBroadcastReceiver);
+    }
+
+    void stopLocationTracking() {
+        mServiceHandler.removeCallbacksAndMessages(null);
+        mServiceLooper.quitSafely();
+    }
+
+    void stopWifiTracking() {
+        if (mWifiScanReceiver != null)
+            unregisterReceiver(mWifiScanReceiver);
+
+        WorkManager.getInstance(getApplicationContext()).cancelUniqueWork(PUSH_APP_STAT_SCAN_WORK_TAG);
+    }
+
+    void stopBluetoothTracking() {
+        if (mBluetoothBroadcastReceiver != null)
+            unregisterReceiver(mBluetoothBroadcastReceiver);
+
+        WorkManager.getInstance(getApplicationContext()).cancelUniqueWork(PUSH_BT_SCAN_WORK_TAG);
+    }
+
+    void stopApplicationsStatisticTracking() {
+        WorkManager.getInstance(getApplicationContext()).cancelUniqueWork(PUSH_APP_STAT_SCAN_WORK_TAG);
     }
 
     private final class ServiceHandler extends Handler {
