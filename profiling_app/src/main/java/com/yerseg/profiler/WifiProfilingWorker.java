@@ -37,11 +37,13 @@ public class WifiProfilingWorker extends Worker {
         WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
         wifiManager.startScan();
 
-        try {
-            OneTimeWorkRequest refreshWork = new OneTimeWorkRequest.Builder(WifiProfilingWorker.class).build();
-            WorkManager.getInstance(mContext).enqueueUniqueWork(ProfilingService.PUSH_WIFI_SCAN_WORK_TAG, ExistingWorkPolicy.REPLACE, refreshWork);
-        } catch (CancellationException ex) {
-            ex.printStackTrace();
+        if (!ProfilingService.isStopping) {
+            try {
+                OneTimeWorkRequest refreshWork = new OneTimeWorkRequest.Builder(WifiProfilingWorker.class).build();
+                WorkManager.getInstance(mContext).enqueueUniqueWork(ProfilingService.PUSH_WIFI_SCAN_WORK_TAG, ExistingWorkPolicy.REPLACE, refreshWork);
+            } catch (CancellationException ex) {
+                ex.printStackTrace();
+            }
         }
 
     }

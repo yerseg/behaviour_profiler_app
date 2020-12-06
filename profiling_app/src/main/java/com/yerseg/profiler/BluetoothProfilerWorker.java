@@ -55,12 +55,13 @@ public class BluetoothProfilerWorker extends Worker {
                 writeFileOnInternalStorage("bt.data", resultStr);
             }
         });*/
-
-        try {
-            OneTimeWorkRequest refreshWork = new OneTimeWorkRequest.Builder(BluetoothProfilerWorker.class).build();
-            WorkManager.getInstance(mContext).enqueueUniqueWork(ProfilingService.PUSH_BT_SCAN_WORK_TAG, ExistingWorkPolicy.REPLACE, refreshWork);
-        } catch (CancellationException ex) {
-            ex.printStackTrace();
+        if (!ProfilingService.isStopping) {
+            try {
+                OneTimeWorkRequest refreshWork = new OneTimeWorkRequest.Builder(BluetoothProfilerWorker.class).build();
+                WorkManager.getInstance(mContext).enqueueUniqueWork(ProfilingService.PUSH_BT_SCAN_WORK_TAG, ExistingWorkPolicy.REPLACE, refreshWork);
+            } catch (CancellationException ex) {
+                ex.printStackTrace();
+            }
         }
     }
 

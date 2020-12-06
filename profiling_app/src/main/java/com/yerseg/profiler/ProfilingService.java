@@ -71,6 +71,7 @@ public class ProfilingService extends Service {
     };
 
     public static boolean isRunning = false;
+    public static boolean isStopping = true;
 
     private Looper mServiceLooper;
     private ServiceHandler mServiceHandler;
@@ -78,6 +79,8 @@ public class ProfilingService extends Service {
     private BroadcastReceiver mScreenStatusBroadcastReceiver;
     private BroadcastReceiver mWifiScanReceiver;
     private BroadcastReceiver mBluetoothBroadcastReceiver;
+
+    private LocationCallback mLocationCallback;
 
     @Override
     public void onCreate() {
@@ -95,24 +98,27 @@ public class ProfilingService extends Service {
         mServiceHandler = new ServiceHandler(mServiceLooper);
 
         createNotificationChannel();
-    }
-
-    @Override
-    public int onStartCommand(Intent intent, int flags, int startId) {
-        super.onStartCommand(intent, flags, startId);
-        Log.d("Profiler [Service]", String.format(Locale.getDefault(), "\t%d\tonStartCommand()", Process.myTid()));
 
         startScreenStateTracking();
         startLocationTracking();
         startWifiTracking();
         startBluetoothTracking();
         startApplicationsStatisticTracking();
+    }
 
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        super.onStartCommand(intent, flags, startId);
+        Log.d("Profiler [Service]", String.format(Locale.getDefault(), "\t%d\tonStartCommand()", Process.myTid()));
         return START_STICKY;
     }
 
     @Override
     public void onDestroy() {
+        synchronized (this) {
+            isStopping = true;
+        }
+
         Log.d("Profiler [Service]", String.format(Locale.getDefault(), "\t%d\tonDestroy()", Process.myTid()));
         super.onDestroy();
 
@@ -127,6 +133,7 @@ public class ProfilingService extends Service {
 
         synchronized (this) {
             isRunning = false;
+            isStopping = false;
         }
     }
 
@@ -166,11 +173,10 @@ public class ProfilingService extends Service {
         locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
 
         FusedLocationProviderClient fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
-
         if (fusedLocationProviderClient != null) {
             int permission = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION);
             if (permission == PackageManager.PERMISSION_GRANTED) {
-                fusedLocationProviderClient.requestLocationUpdates(locationRequest, new LocationCallback() {
+                mLocationCallback = new LocationCallback() {
                     @Override
                     public void onLocationResult(LocationResult result) {
                         Log.d("Profiler [LocationStat]", String.format(Locale.getDefault(), "\t%d\tonLocationResult()", Process.myTid()));
@@ -185,7 +191,8 @@ public class ProfilingService extends Service {
                         );
                         Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), LOCATION_STATS_FILE_NAME, locationStats);
                     }
-                }, mServiceLooper);
+                };
+                fusedLocationProviderClient.requestLocationUpdates(locationRequest, mLocationCallback, mServiceLooper);
             }
         }
     }
@@ -233,7 +240,7 @@ public class ProfilingService extends Service {
         };
 
         IntentFilter intentFilter = new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION);
-        getApplicationContext().registerReceiver(mWifiScanReceiver, intentFilter);
+        registerReceiver(mWifiScanReceiver, intentFilter);
 
         OneTimeWorkRequest refreshWork = new OneTimeWorkRequest.Builder(WifiProfilingWorker.class).build();
         WorkManager.getInstance(getApplicationContext()).enqueueUniqueWork(PUSH_WIFI_SCAN_WORK_TAG, ExistingWorkPolicy.KEEP, refreshWork);
@@ -322,7 +329,7 @@ public class ProfilingService extends Service {
         intentFilter.addAction(Intent.ACTION_SCREEN_ON);
         intentFilter.addAction(Intent.ACTION_USER_UNLOCKED);
 
-        getApplicationContext().registerReceiver(mScreenStatusBroadcastReceiver, intentFilter);
+        registerReceiver(mScreenStatusBroadcastReceiver, intentFilter);
     }
 
     void stopScreenStateTracking() {
@@ -331,6 +338,11 @@ public class ProfilingService extends Service {
     }
 
     void stopLocationTracking() {
+        FusedLocationProviderClient fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
+        if (fusedLocationProviderClient != null) {
+            fusedLocationProviderClient.removeLocationUpdates(mLocationCallback);
+        }
+
         mServiceHandler.removeCallbacksAndMessages(null);
         mServiceLooper.quitSafely();
     }

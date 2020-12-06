@@ -44,13 +44,14 @@ public class ApplicationsProfilerWorker extends Worker {
 
         Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.APP_STATS_FILE_NAME, getStatisticsForWritingToFile());
 
-        try {
-            OneTimeWorkRequest refreshWork = new OneTimeWorkRequest.Builder(ApplicationsProfilerWorker.class).build();
-            WorkManager.getInstance(mContext).enqueueUniqueWork(ProfilingService.PUSH_APP_STAT_SCAN_WORK_TAG, ExistingWorkPolicy.REPLACE, refreshWork);
-        } catch (CancellationException ex) {
-            ex.printStackTrace();
+        if (!ProfilingService.isStopping) {
+            try {
+                OneTimeWorkRequest refreshWork = new OneTimeWorkRequest.Builder(ApplicationsProfilerWorker.class).build();
+                WorkManager.getInstance(mContext).enqueueUniqueWork(ProfilingService.PUSH_APP_STAT_SCAN_WORK_TAG, ExistingWorkPolicy.REPLACE, refreshWork);
+            } catch (CancellationException ex) {
+                ex.printStackTrace();
+            }
         }
-
     }
 
     private String getStatisticsForWritingToFile() {
