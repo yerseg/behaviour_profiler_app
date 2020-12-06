@@ -227,7 +227,7 @@ public class ProfilingService extends Service {
                                         result.channelWidth,
                                         result.frequency,
                                         result.level,
-                                        result.operatorFriendlyName,
+                                        result.operatorFriendlyName.length(),
                                         result.timestamp,
                                         result.venueName,
                                         result.is80211mcResponder(),
@@ -313,7 +313,7 @@ public class ProfilingService extends Service {
                 new Thread(new Runnable() {
                     @Override
                     public void run() {
-                        String screenStats = String.format(Locale.getDefault(), "%s,%s", Utils.GetTimeStamp(System.currentTimeMillis()), finalIntentActionName);
+                        String screenStats = String.format(Locale.getDefault(), "%s,%s\n", Utils.GetTimeStamp(System.currentTimeMillis()), finalIntentActionName);
                         Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), SCREEN_STATE_STATS_FILE_NAME, screenStats);
                     }
                 }).run();

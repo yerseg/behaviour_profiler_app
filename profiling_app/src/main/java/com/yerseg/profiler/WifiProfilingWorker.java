@@ -46,7 +46,7 @@ public class WifiProfilingWorker extends Worker {
         String timestamp = Utils.GetTimeStamp(System.currentTimeMillis());
         WifiInfo currentInfo = wifiManager.getConnectionInfo();
 
-        String connectionInfo = String.format(Locale.getDefault(), "%s,%s,CONN,%s,%d,%b,%d,%d,%s,%d,%d,%s",
+        String connectionInfo = String.format(Locale.getDefault(), "%s,%s,CONN,%s,%d,%b,%d,%d,%s,%d,%d,%s\n",
                 timestamp,
                 statResponseId,
                 currentInfo.getBSSID(),
