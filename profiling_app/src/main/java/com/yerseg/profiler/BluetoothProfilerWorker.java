@@ -4,6 +4,9 @@ import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothProfile;
+import android.bluetooth.le.BluetoothLeScanner;
+import android.bluetooth.le.ScanCallback;
+import android.bluetooth.le.ScanResult;
 import android.content.Context;
 
 import androidx.annotation.NonNull;
@@ -103,13 +106,14 @@ public class BluetoothProfilerWorker extends Worker {
             }
         }
 
-        /*BluetoothLeScanner btScanner = BluetoothAdapter.getDefaultAdapter().getBluetoothLeScanner();
+        BluetoothLeScanner btScanner = BluetoothAdapter.getDefaultAdapter().getBluetoothLeScanner();
         btScanner.startScan(new ScanCallback() {
             @Override
             public void onScanResult(int callbackType, ScanResult result) {
                 super.onScanResult(callbackType, result);
 
-                String resultStr = String.format(Locale.getDefault(), "%d,%d,%d,%d,%b,%b",
+                String resultStr = String.format(Locale.getDefault(), "%s,LE,%d,%d,%d,%d,%b,%b",
+                        Utils.GetTimeStamp(System.currentTimeMillis()),
                         result.getAdvertisingSid(),
                         result.getDataStatus(),
                         result.getRssi(),
@@ -117,17 +121,17 @@ public class BluetoothProfilerWorker extends Worker {
                         result.isConnectable(),
                         result.isLegacy());
 
-                writeFileOnInternalStorage("bt.data", resultStr);
+                Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.BLUETOOTH_STATS_FILE_NAME, resultStr);
             }
-        });*/
+        });
 
-            if (!ProfilingService.isStopping) {
-                try {
-                    OneTimeWorkRequest refreshWork = new OneTimeWorkRequest.Builder(BluetoothProfilerWorker.class).build();
-                    WorkManager.getInstance(mContext).enqueueUniqueWork(ProfilingService.PUSH_BT_SCAN_WORK_TAG, ExistingWorkPolicy.REPLACE, refreshWork);
-                } catch (CancellationException ex) {
-                    ex.printStackTrace();
-                }
+        if (!ProfilingService.isStopping) {
+            try {
+                OneTimeWorkRequest refreshWork = new OneTimeWorkRequest.Builder(BluetoothProfilerWorker.class).build();
+                WorkManager.getInstance(mContext).enqueueUniqueWork(ProfilingService.PUSH_BT_SCAN_WORK_TAG, ExistingWorkPolicy.REPLACE, refreshWork);
+            } catch (CancellationException ex) {
+                ex.printStackTrace();
             }
         }
     }
+}
