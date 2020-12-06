@@ -202,7 +202,7 @@ public class MainActivity extends FragmentActivity {
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        if (requestCode == PERMISSIONS_REQUEST_ID && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+        if (requestCode == PERMISSIONS_REQUEST_ID && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
             mIsPermissionsGranted = true;
         } else {
             mIsPermissionsGranted = false;
@@ -232,7 +232,12 @@ public class MainActivity extends FragmentActivity {
     }
 
     private void showLongToast(String text) {
-        Toast.makeText(getApplicationContext(), text, Toast.LENGTH_LONG);
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                Toast.makeText(getApplicationContext(), text, Toast.LENGTH_LONG).show();
+            }
+        });
     }
 
     private void moveDataFilesToTempDirectory(String[] dataFilesNames) {
