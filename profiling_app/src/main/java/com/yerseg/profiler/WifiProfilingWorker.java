@@ -1,6 +1,8 @@
 package com.yerseg.profiler;
 
 import android.content.Context;
+import android.net.wifi.ScanResult;
+import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 
 import androidx.annotation.NonNull;
@@ -10,6 +12,9 @@ import androidx.work.WorkManager;
 import androidx.work.Worker;
 import androidx.work.WorkerParameters;
 
+import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
 import java.util.concurrent.CancellationException;
 
 public class WifiProfilingWorker extends Worker {
@@ -37,6 +42,25 @@ public class WifiProfilingWorker extends Worker {
         WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
         wifiManager.startScan();
 
+        String statResponseId = UUID.randomUUID().toString();
+        String timestamp = Utils.GetTimeStamp(System.currentTimeMillis());
+        WifiInfo currentInfo = wifiManager.getConnectionInfo();
+
+        String connectionInfo = String.format(Locale.getDefault(), "%s,%s,CONN,%s,%d,%b,%d,%d,%s,%d,%d,%s",
+                timestamp,
+                statResponseId,
+                currentInfo.getBSSID(),
+                currentInfo.getFrequency(),
+                currentInfo.getHiddenSSID(),
+                currentInfo.getIpAddress(),
+                currentInfo.getLinkSpeed(),
+                currentInfo.getMacAddress(),
+                currentInfo.getNetworkId(),
+                currentInfo.getRssi(),
+                currentInfo.getSSID());
+
+        Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.WIFI_STATS_FILE_NAME, connectionInfo);
+
         if (!ProfilingService.isStopping) {
             try {
                 OneTimeWorkRequest refreshWork = new OneTimeWorkRequest.Builder(WifiProfilingWorker.class).build();
@@ -45,8 +69,5 @@ public class WifiProfilingWorker extends Worker {
                 ex.printStackTrace();
             }
         }
-
     }
-
-
 }

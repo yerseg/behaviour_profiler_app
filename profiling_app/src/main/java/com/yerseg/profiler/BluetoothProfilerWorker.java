@@ -1,6 +1,7 @@
 package com.yerseg.profiler;
 
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 
 import androidx.annotation.NonNull;
@@ -10,6 +11,10 @@ import androidx.work.WorkManager;
 import androidx.work.Worker;
 import androidx.work.WorkerParameters;
 
+import java.security.ProtectionDomain;
+import java.util.Locale;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CancellationException;
 
 public class BluetoothProfilerWorker extends Worker {
@@ -35,8 +40,30 @@ public class BluetoothProfilerWorker extends Worker {
     }
 
     private void doActualWork() {
-        if (!BluetoothAdapter.getDefaultAdapter().isDiscovering())
-            BluetoothAdapter.getDefaultAdapter().startDiscovery();
+        final BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+        if (bluetoothAdapter != null) {
+            if (!bluetoothAdapter.isDiscovering())
+                BluetoothAdapter.getDefaultAdapter().startDiscovery();
+
+            String statResponseId = UUID.randomUUID().toString();
+            String timestamp = Utils.GetTimeStamp(System.currentTimeMillis());
+
+            Set<BluetoothDevice> connectedDevisesSet = bluetoothAdapter.getBondedDevices();
+
+            for (BluetoothDevice device : connectedDevisesSet) {
+                String bluetoothStats = String.format(Locale.getDefault(), "%s,%s,CONN,%s,%s,%d,%d,%d,%d\n",
+                        timestamp,
+                        statResponseId,
+                        device.getName(),
+                        device.getAddress(),
+                        device.getBluetoothClass().getMajorDeviceClass(),
+                        device.getBluetoothClass().getDeviceClass(),
+                        device.getBondState(),
+                        device.getType());
+
+                Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.BLUETOOTH_STATS_FILE_NAME, bluetoothStats);
+            }
+        }
 
         /*BluetoothLeScanner btScanner = BluetoothAdapter.getDefaultAdapter().getBluetoothLeScanner();
         btScanner.startScan(new ScanCallback() {
@@ -55,6 +82,7 @@ public class BluetoothProfilerWorker extends Worker {
                 writeFileOnInternalStorage("bt.data", resultStr);
             }
         });*/
+
         if (!ProfilingService.isStopping) {
             try {
                 OneTimeWorkRequest refreshWork = new OneTimeWorkRequest.Builder(BluetoothProfilerWorker.class).build();
