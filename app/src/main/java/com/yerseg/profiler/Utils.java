@@ -67,6 +67,24 @@ public class Utils {
         }
     }
 
+    public static boolean deleteFile(File file) {
+        boolean isDeleted = false;
+        if (file.exists()) {
+            try {
+                isDeleted = file.delete();
+            }
+            catch (SecurityException ex) {
+                isDeleted = false;
+                ex.printStackTrace();
+            }
+        }
+        else {
+            isDeleted = true;
+        }
+
+        return isDeleted;
+    }
+
     public static File createZip(List<File> files, File tempDir) {
         String zipName = String.format(Locale.getDefault(), "report_%s.zip",
                 UUID.randomUUID().toString());

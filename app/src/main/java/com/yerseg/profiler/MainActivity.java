@@ -245,13 +245,37 @@ public class MainActivity extends FragmentActivity {
         }
     }
 
+    private boolean deleteTempFiles() {
+        boolean isAllFilesDeleted = true;
+        File tempDir = Utils.getTempDataFilesDir(getApplicationContext());
+
+        if (tempDir.exists()) {
+            File[] tempFiles = tempDir.listFiles();
+            for (File tempFile : tempFiles) {
+                if (tempFile.exists()) {
+                    if (!Utils.deleteFile(tempFile)) {
+                        isAllFilesDeleted = false;
+                    }
+                }
+            }
+        }
+
+        return isAllFilesDeleted;
+    }
+
     private void onSendButtonClick() {
         Log.d("Profiler [MainActivity]", String.format(Locale.getDefault(), "\t%d\tonSendButtonClick()", Process.myTid()));
 
         try {
+            if (!deleteTempFiles()) {
+                Thread.sleep(300);
+                if (!deleteTempFiles()) {
+                    Log.d("Profiler [MainActivity]", String.format(
+                            Locale.getDefault(), "\t%d\tonSendButtonClick(), Msg: \"%s\"", Process.myTid(), "Temp directory is not clean!"));
+                }
+            }
+
             File tempDir = Utils.getTempDataFilesDir(getApplicationContext());
-            if (tempDir.exists())
-                tempDir.delete();
 
             MutexHolder.getMutex().lock();
             try {
