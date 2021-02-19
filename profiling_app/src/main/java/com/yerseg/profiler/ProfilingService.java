@@ -20,11 +20,9 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Looper;
-import android.os.Message;
 import android.os.Process;
 import android.util.Log;
 
-import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
@@ -41,7 +39,6 @@ import com.google.android.gms.location.LocationServices;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
-import java.util.concurrent.CancellationException;
 
 public class ProfilingService extends Service {
 
@@ -75,11 +72,10 @@ public class ProfilingService extends Service {
     public static boolean isRunning = false;
     public static boolean isStopping = true;
 
+    private HandlerThread mLocationProfilingThread;
     private HandlerThread mWifiProfilingThread;
 
-    private Looper mServiceLooper;
-
-    private ServiceHandler mServiceHandler;
+    private Handler mLocationProfilingThreadHandler;
     private Handler mWifiProfilingThreadHandler;
 
     private BroadcastReceiver mScreenStatusBroadcastReceiver;
@@ -96,14 +92,6 @@ public class ProfilingService extends Service {
         synchronized (this) {
             isRunning = true;
         }
-
-        HandlerThread thread = new HandlerThread("LocationThread", Process.THREAD_PRIORITY_FOREGROUND);
-        thread.start();
-
-        mServiceLooper = thread.getLooper();
-        mServiceHandler = new ServiceHandler(mServiceLooper);
-
-
 
         createNotificationChannel();
     }
@@ -198,10 +186,18 @@ public class ProfilingService extends Service {
                                 location.getLongitude(),
                                 location.getProvider()
                         );
+
                         Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), LOCATION_STATS_FILE_NAME, locationStats);
                     }
                 };
-                fusedLocationProviderClient.requestLocationUpdates(locationRequest, mLocationCallback, mServiceLooper);
+
+                HandlerThread thread = new HandlerThread("LocationProfilingThread", Process.THREAD_PRIORITY_FOREGROUND);
+                thread.start();
+
+                Looper looper = thread.getLooper();
+                mLocationProfilingThreadHandler = new Handler(looper);
+
+                fusedLocationProviderClient.requestLocationUpdates(locationRequest, mLocationCallback, looper);
             }
         }
     }
@@ -432,7 +428,7 @@ public class ProfilingService extends Service {
             fusedLocationProviderClient.removeLocationUpdates(mLocationCallback);
         }
 
-        mServiceHandler.removeCallbacksAndMessages(null);
+        mLocationProfilingThreadHandler.removeCallbacksAndMessages(null);
         mServiceLooper.quitSafely();
     }
 
@@ -452,16 +448,5 @@ public class ProfilingService extends Service {
 
     void stopApplicationsStatisticTracking() {
         WorkManager.getInstance(getApplicationContext()).cancelUniqueWork(PUSH_APP_STAT_SCAN_WORK_TAG);
-    }
-
-    private final class ServiceHandler extends Handler {
-        public ServiceHandler(Looper looper) {
-            super(looper);
-        }
-
-        @Override
-        public void handleMessage(@NonNull Message msg) {
-            super.handleMessage(msg);
-        }
     }
 }
