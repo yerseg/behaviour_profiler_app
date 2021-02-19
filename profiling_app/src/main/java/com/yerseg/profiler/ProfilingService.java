@@ -41,6 +41,7 @@ import com.google.android.gms.location.LocationServices;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 
 public class ProfilingService extends Service {
 
@@ -74,8 +75,12 @@ public class ProfilingService extends Service {
     public static boolean isRunning = false;
     public static boolean isStopping = true;
 
+    private HandlerThread mWifiProfilingThread;
+
     private Looper mServiceLooper;
+
     private ServiceHandler mServiceHandler;
+    private Handler mWifiProfilingThreadHandler;
 
     private BroadcastReceiver mScreenStatusBroadcastReceiver;
     private BroadcastReceiver mWifiScanReceiver;
@@ -98,6 +103,8 @@ public class ProfilingService extends Service {
         mServiceLooper = thread.getLooper();
         mServiceHandler = new ServiceHandler(mServiceLooper);
 
+
+
         createNotificationChannel();
     }
 
@@ -108,7 +115,7 @@ public class ProfilingService extends Service {
 
         startScreenStateTracking();
         startLocationTracking();
-        startWifiTracking();
+        startWifiTracking2();
         startBluetoothTracking();
         startApplicationsStatisticTracking();
 
@@ -246,6 +253,87 @@ public class ProfilingService extends Service {
 
         OneTimeWorkRequest refreshWork = new OneTimeWorkRequest.Builder(WifiProfilingWorker.class).build();
         WorkManager.getInstance(getApplicationContext()).enqueueUniqueWork(PUSH_WIFI_SCAN_WORK_TAG, ExistingWorkPolicy.KEEP, refreshWork);
+    }
+
+    private void startWifiTracking2() {
+        mWifiProfilingThread = new HandlerThread("WifiProfilingThread", Process.THREAD_PRIORITY_FOREGROUND);
+        mWifiProfilingThread.start();
+
+        Looper looper = mWifiProfilingThread.getLooper();
+        mWifiProfilingThreadHandler = new Handler(looper);
+
+        mWifiProfilingThreadHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+                wifiManager.startScan();
+
+                String statResponseId = UUID.randomUUID().toString();
+                String timestamp = Utils.GetTimeStamp(System.currentTimeMillis());
+                WifiInfo currentInfo = wifiManager.getConnectionInfo();
+
+                String connectionInfo = String.format(Locale.getDefault(), "%s,%s,CONN,%s,%d,%b,%d,%d,%s,%d,%d,%s\n",
+                        timestamp,
+                        statResponseId,
+                        currentInfo.getBSSID(),
+                        currentInfo.getFrequency(),
+                        currentInfo.getHiddenSSID(),
+                        currentInfo.getIpAddress(),
+                        currentInfo.getLinkSpeed(),
+                        currentInfo.getMacAddress(),
+                        currentInfo.getNetworkId(),
+                        currentInfo.getRssi(),
+                        currentInfo.getSSID());
+
+                Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.WIFI_STATS_FILE_NAME, connectionInfo);
+
+                mWifiProfilingThreadHandler.postDelayed(this, 5000);
+            }
+        });
+
+        final WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+
+        mWifiScanReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context c, Intent intent) {
+                if (intent.getBooleanExtra(WifiManager.EXTRA_RESULTS_UPDATED, false)) {
+                    new Thread(new Runnable() {
+                        @Override
+                        public void run() {
+                            final WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+                            List<ScanResult> scanResults = wifiManager.getScanResults();
+
+                            String statResponseId = UUID.randomUUID().toString();
+                            String timestamp = Utils.GetTimeStamp(System.currentTimeMillis());
+
+                            for (ScanResult result : scanResults) {
+                                String wifiStats = String.format(Locale.getDefault(), "%s,%s,%s,%s,%s,%d,%d,%d,%d,%d,%s,%d,%s,%b,%b\n",
+                                        timestamp,
+                                        statResponseId,
+                                        result.BSSID,
+                                        result.SSID,
+                                        result.capabilities,
+                                        result.centerFreq0,
+                                        result.centerFreq1,
+                                        result.channelWidth,
+                                        result.frequency,
+                                        result.level,
+                                        result.operatorFriendlyName.length(),
+                                        result.timestamp,
+                                        result.venueName,
+                                        result.is80211mcResponder(),
+                                        result.isPasspointNetwork());
+
+                                Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), WIFI_STATS_FILE_NAME, wifiStats);
+                            }
+                        }
+                    }).start();
+                }
+            }
+        };
+
+        IntentFilter intentFilter = new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION);
+        registerReceiver(mWifiScanReceiver, intentFilter);
     }
 
     private void startBluetoothTracking() {
