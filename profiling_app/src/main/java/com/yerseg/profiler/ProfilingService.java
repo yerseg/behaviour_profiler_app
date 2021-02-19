@@ -103,7 +103,7 @@ public class ProfilingService extends Service {
 
         startScreenStateTracking();
         startLocationTracking();
-        startWifiTracking2();
+        startWifiTracking();
         startBluetoothTracking();
         startApplicationsStatisticTracking();
 
@@ -202,7 +202,7 @@ public class ProfilingService extends Service {
         }
     }
 
-    private void startWifiTracking2() {
+    private void startWifiTracking() {
         final WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
 
         mWifiScanReceiver = new BroadcastReceiver() {
