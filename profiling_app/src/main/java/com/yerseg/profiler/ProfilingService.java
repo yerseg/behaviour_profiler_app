@@ -10,8 +10,6 @@ import android.app.usage.UsageStats;
 import android.app.usage.UsageStatsManager;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothManager;
-import android.bluetooth.BluetoothProfile;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
 import android.content.BroadcastReceiver;
@@ -42,9 +40,9 @@ import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.UUID;
 
 public class ProfilingService extends Service {
@@ -322,6 +320,10 @@ public class ProfilingService extends Service {
                 String statResponseId = UUID.randomUUID().toString();
                 final BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
 
+                if (bluetoothAdapter != null)
+                    if (!bluetoothAdapter.isDiscovering())
+                        BluetoothAdapter.getDefaultAdapter().startDiscovery();
+
                 BluetoothLeScanner btScanner = BluetoothAdapter.getDefaultAdapter().getBluetoothLeScanner();
                 btScanner.startScan(new ScanCallback() {
                     @Override
@@ -420,51 +422,25 @@ public class ProfilingService extends Service {
 
                         Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), BROADCASTS_STATS_FILE_NAME, broadcastStats);
                     }
-                }).run();
+                }).start();
             }
         };
 
-        IntentFilter intentFilter = new IntentFilter();
-
-        String[] sysBroadcasts = getResources().getStringArray(R.array.anyBroadcasts);
-        for (String sysBroadcast : sysBroadcasts) {
-            intentFilter.addAction(sysBroadcast);
-        }
-
-        intentFilter.addDataScheme("package");
-        intentFilter.addDataScheme("file");
-        intentFilter.addDataScheme("geo");
-        intentFilter.addDataScheme("market");
-        intentFilter.addDataScheme("http");
-        intentFilter.addDataScheme("tel");
-        intentFilter.addDataScheme("mailto");
-        intentFilter.addDataScheme("about");
-        intentFilter.addDataScheme("https");
-        intentFilter.addDataScheme("ftps");
-        intentFilter.addDataScheme("ftp");
-        intentFilter.addDataScheme("javascript");
-
-        try {
-            intentFilter.addDataType("*/*");
-        } catch (Exception ex) {
-            Log.d("Profiler [Broadcasts Stat]", "Add data type \"*/*\" failed");
-        }
-
-        registerReceiver(mAnyBroadcastReceiver, intentFilter);
+        registerAnyBroadcastReceiver();
     }
 
     private void startScreenStateTracking() {
         mScreenStatusBroadcastReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
-                final String finalIntentActionName = intent.toString();
+                final String finalIntentActionName = intent.getAction();
                 new Thread(new Runnable() {
                     @Override
                     public void run() {
                         String screenStats = String.format(Locale.getDefault(), "%s;%s\n", Utils.GetTimeStamp(System.currentTimeMillis()), finalIntentActionName);
                         Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), SCREEN_STATE_STATS_FILE_NAME, screenStats);
                     }
-                }).run();
+                }).start();
             }
         };
 
@@ -520,5 +496,57 @@ public class ProfilingService extends Service {
     private void stopAnyBroadcastsTracking() {
         if (mAnyBroadcastReceiver != null)
             unregisterReceiver(mAnyBroadcastReceiver);
+    }
+
+    private void registerAnyBroadcastReceiver() {
+        registerBroadcastReceiverForActions();
+        registerBroadcastReceiverForActionsWithDataType();
+        registerBroadcastReceiverForActionsWithSchemes();
+    }
+
+    private void registerBroadcastReceiverForActions() {
+        IntentFilter intentFilter = new IntentFilter();
+        addAllKnownActions(intentFilter);
+        registerReceiver(mAnyBroadcastReceiver, intentFilter);
+    }
+
+    private void registerBroadcastReceiverForActionsWithDataType() {
+        IntentFilter intentFilter = new IntentFilter();
+
+        try {
+            intentFilter.addDataType("*/*");
+        } catch (Exception ex) {
+            Log.d("Profiler [Broadcasts Stat]", "Add data type \"*/*\" failed");
+        }
+
+        addAllKnownActions(intentFilter);
+        registerReceiver(mAnyBroadcastReceiver, intentFilter);
+    }
+
+    private void registerBroadcastReceiverForActionsWithSchemes() {
+        IntentFilter intentFilter = new IntentFilter();
+
+        intentFilter.addDataScheme("package");
+        intentFilter.addDataScheme("file");
+        intentFilter.addDataScheme("geo");
+        intentFilter.addDataScheme("market");
+        intentFilter.addDataScheme("http");
+        intentFilter.addDataScheme("tel");
+        intentFilter.addDataScheme("mailto");
+        intentFilter.addDataScheme("about");
+        intentFilter.addDataScheme("https");
+        intentFilter.addDataScheme("ftps");
+        intentFilter.addDataScheme("ftp");
+        intentFilter.addDataScheme("javascript");
+
+        addAllKnownActions(intentFilter);
+        registerReceiver(mAnyBroadcastReceiver, intentFilter);
+    }
+
+    private void addAllKnownActions(IntentFilter pIntentFilter) {
+        String[] sysBroadcasts = getResources().getStringArray(R.array.anyBroadcasts);
+        for (String sysBroadcast : sysBroadcasts) {
+            pIntentFilter.addAction(sysBroadcast);
+        }
     }
 }
