@@ -200,10 +200,10 @@ public class ProfilingService extends Service {
                     }
                 };
 
-                HandlerThread thread = new HandlerThread("LocationProfilingThread", Process.THREAD_PRIORITY_FOREGROUND);
-                thread.start();
+                mLocationProfilingThread = new HandlerThread("LocationProfilingThread", Process.THREAD_PRIORITY_FOREGROUND);
+                mLocationProfilingThread.start();
 
-                Looper looper = thread.getLooper();
+                Looper looper = mLocationProfilingThread.getLooper();
                 mLocationProfilingThreadHandler = new Handler(looper);
 
                 fusedLocationProviderClient.requestLocationUpdates(locationRequest, mLocationCallback, looper);
