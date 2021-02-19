@@ -5,6 +5,10 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
+import android.app.usage.ConfigurationStats;
+import android.app.usage.EventStats;
+import android.app.usage.UsageStats;
+import android.app.usage.UsageStatsManager;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
@@ -16,6 +20,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
 import android.graphics.Color;
 import android.location.Location;
 import android.net.wifi.ScanResult;
@@ -26,6 +31,7 @@ import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.Process;
+import android.os.SystemClock;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
@@ -80,10 +86,12 @@ public class ProfilingService extends Service {
     private HandlerThread mLocationProfilingThread;
     private HandlerThread mWifiProfilingThread;
     private HandlerThread mBluetoothProfilingThread;
+    private HandlerThread mApplicationProfilingThread;
 
     private Handler mLocationProfilingThreadHandler;
     private Handler mWifiProfilingThreadHandler;
     private Handler mBluetoothProfilingThreadHandler;
+    private Handler mApplicationProfilingThreadHandler;
 
     private BroadcastReceiver mScreenStatusBroadcastReceiver;
     private BroadcastReceiver mWifiScanReceiver;
@@ -413,8 +421,96 @@ public class ProfilingService extends Service {
     }
 
     private void startApplicationsStatisticTracking() {
-        OneTimeWorkRequest refreshWork = new OneTimeWorkRequest.Builder(ApplicationsProfilerWorker.class).build();
-        WorkManager.getInstance(getApplicationContext()).enqueueUniqueWork(PUSH_APP_STAT_SCAN_WORK_TAG, ExistingWorkPolicy.KEEP, refreshWork);
+        mApplicationProfilingThread = new HandlerThread("AppStatThread", Process.THREAD_PRIORITY_FOREGROUND);
+        mApplicationProfilingThread.start();
+
+        Looper looper = mApplicationProfilingThread.getLooper();
+        mApplicationProfilingThreadHandler = new Handler(looper);
+
+        mApplicationProfilingThreadHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.APP_STATS_FILE_NAME, getStatisticsForWritingToFile());
+                mApplicationProfilingThreadHandler.postDelayed(this, APP_STATS_UPDATE_FREQ);
+            }
+
+            private String getStatisticsForWritingToFile() {
+                long beginTime = java.lang.System.currentTimeMillis() - SystemClock.elapsedRealtime();
+                long endTime = java.lang.System.currentTimeMillis();
+
+                UsageStatsManager usageStatsManager = (UsageStatsManager) getApplicationContext().getSystemService(Context.USAGE_STATS_SERVICE);
+
+                String statResponseId = UUID.randomUUID().toString();
+                String timestamp = Utils.GetTimeStamp(endTime);
+
+                StringBuilder statistic = new StringBuilder();
+
+                List<UsageStats> usageStatsList = usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, beginTime, endTime);
+
+                for (UsageStats usageStats : usageStatsList) {
+                    statistic.append(String.format(Locale.getDefault(), "UsageStats,%s,%s,%s,%d,%d,%d,%d\n",
+                            timestamp,
+                            statResponseId,
+                            usageStats.getPackageName(),
+                            usageStats.getFirstTimeStamp(),
+                            usageStats.getLastTimeStamp(),
+                            usageStats.getLastTimeUsed(),
+                            usageStats.getTotalTimeInForeground()));
+                }
+
+                List<ConfigurationStats> configurationStatsList = usageStatsManager.queryConfigurations(UsageStatsManager.INTERVAL_DAILY, beginTime, endTime);
+
+                for (ConfigurationStats configurationStats : configurationStatsList) {
+                    Configuration configuration = configurationStats.getConfiguration();
+                    statistic.append(String.format(Locale.getDefault(), "ConfigStats,%s,%s,%d,%d,%d,%d,%d,%d,%d,%f,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%s,%b,%b,%b\n",
+                            timestamp,
+                            statResponseId,
+                            configurationStats.getActivationCount(),
+                            configurationStats.getFirstTimeStamp(),
+                            configurationStats.getLastTimeActive(),
+                            configurationStats.getLastTimeStamp(),
+                            configurationStats.getTotalTimeActive(),
+                            configuration.colorMode,
+                            configuration.densityDpi,
+                            configuration.fontScale,
+                            configuration.hardKeyboardHidden,
+                            configuration.keyboard,
+                            configuration.keyboardHidden,
+                            configuration.mcc,
+                            configuration.mnc,
+                            configuration.navigation,
+                            configuration.navigationHidden,
+                            configuration.orientation,
+                            configuration.screenHeightDp,
+                            configuration.screenLayout,
+                            configuration.screenWidthDp,
+                            configuration.smallestScreenWidthDp,
+                            configuration.touchscreen,
+                            configuration.uiMode,
+                            configuration.getLayoutDirection(),
+                            configuration.getLocales().toLanguageTags(),
+                            configuration.isScreenHdr(),
+                            configuration.isScreenRound(),
+                            configuration.isScreenWideColorGamut()));
+                }
+
+                List<EventStats> eventStatsList = usageStatsManager.queryEventStats(UsageStatsManager.INTERVAL_DAILY, beginTime, endTime);
+
+                for (EventStats eventStat : eventStatsList) {
+                    statistic.append(String.format(Locale.getDefault(), "EventStats,%s,%s,%d,%d,%d,%d,%d,%d\n",
+                            timestamp,
+                            statResponseId,
+                            eventStat.getCount(),
+                            eventStat.getEventType(),
+                            eventStat.getFirstTimeStamp(),
+                            eventStat.getLastTimeStamp(),
+                            eventStat.getLastEventTime(),
+                            eventStat.getTotalTime()));
+                }
+
+                return statistic.toString();
+            }
+        });
     }
 
     private void startScreenStateTracking() {
@@ -497,6 +593,7 @@ public class ProfilingService extends Service {
     }
 
     void stopApplicationsStatisticTracking() {
-        WorkManager.getInstance(getApplicationContext()).cancelUniqueWork(PUSH_APP_STAT_SCAN_WORK_TAG);
+        mApplicationProfilingThreadHandler.removeCallbacksAndMessages(null);
+        mApplicationProfilingThread.quitSafely();
     }
 }
