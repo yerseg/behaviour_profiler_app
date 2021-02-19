@@ -5,7 +5,12 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
+import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothManager;
+import android.bluetooth.BluetoothProfile;
+import android.bluetooth.le.BluetoothLeScanner;
+import android.bluetooth.le.ScanCallback;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -38,7 +43,9 @@ import com.google.android.gms.location.LocationServices;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 
 public class ProfilingService extends Service {
 
@@ -74,9 +81,11 @@ public class ProfilingService extends Service {
 
     private HandlerThread mLocationProfilingThread;
     private HandlerThread mWifiProfilingThread;
+    private HandlerThread mBluetoothProfilingThread;
 
     private Handler mLocationProfilingThreadHandler;
     private Handler mWifiProfilingThreadHandler;
+    private Handler mBluetoothProfilingThreadHandler;
 
     private BroadcastReceiver mScreenStatusBroadcastReceiver;
     private BroadcastReceiver mWifiScanReceiver;
@@ -311,8 +320,98 @@ public class ProfilingService extends Service {
         IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
         registerReceiver(mBluetoothBroadcastReceiver, filter);
 
-        OneTimeWorkRequest refreshWork = new OneTimeWorkRequest.Builder(BluetoothProfilerWorker.class).build();
-        WorkManager.getInstance(getApplicationContext()).enqueueUniqueWork(PUSH_BT_SCAN_WORK_TAG, ExistingWorkPolicy.KEEP, refreshWork);
+        mBluetoothProfilingThread = new HandlerThread("BluetoothProfilingThread", Process.THREAD_PRIORITY_FOREGROUND);
+        mBluetoothProfilingThread.start();
+
+        Looper looper = mBluetoothProfilingThread.getLooper();
+        mBluetoothProfilingThreadHandler = new Handler(looper);
+
+        mBluetoothProfilingThreadHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                String statResponseId = UUID.randomUUID().toString();
+                final BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+                if (bluetoothAdapter != null) {
+                    if (!bluetoothAdapter.isDiscovering())
+                        BluetoothAdapter.getDefaultAdapter().startDiscovery();
+
+                    String timestamp = Utils.GetTimeStamp(System.currentTimeMillis());
+                    Set<BluetoothDevice> bondedDevices = bluetoothAdapter.getBondedDevices();
+
+                    for (BluetoothDevice device : bondedDevices) {
+                        String bluetoothStats = String.format(Locale.getDefault(), "%s,%s,BONDED,%s,%s,%d,%d,%d,%d\n",
+                                timestamp,
+                                statResponseId,
+                                device.getName(),
+                                device.getAddress(),
+                                device.getBluetoothClass().getMajorDeviceClass(),
+                                device.getBluetoothClass().getDeviceClass(),
+                                device.getBondState(),
+                                device.getType());
+
+                        Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.BLUETOOTH_STATS_FILE_NAME, bluetoothStats);
+                    }
+                }
+
+                final BluetoothManager bluetoothManager = (BluetoothManager) getApplicationContext().getSystemService(Context.BLUETOOTH_SERVICE);
+                if (bluetoothManager != null) {
+                    String timestamp = Utils.GetTimeStamp(System.currentTimeMillis());
+                    List<BluetoothDevice> gattDevices = bluetoothManager.getConnectedDevices(BluetoothProfile.GATT);
+
+                    for (BluetoothDevice device : gattDevices) {
+                        String bluetoothStats = String.format(Locale.getDefault(), "%s,%s,GATT,%s,%s,%d,%d,%d,%d\n",
+                                timestamp,
+                                statResponseId,
+                                device.getName(),
+                                device.getAddress(),
+                                device.getBluetoothClass().getMajorDeviceClass(),
+                                device.getBluetoothClass().getDeviceClass(),
+                                device.getBondState(),
+                                device.getType());
+
+                        Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.BLUETOOTH_STATS_FILE_NAME, bluetoothStats);
+                    }
+
+                    timestamp = Utils.GetTimeStamp(System.currentTimeMillis());
+                    List<BluetoothDevice> gattServerDevices = bluetoothManager.getConnectedDevices(BluetoothProfile.GATT_SERVER);
+
+                    for (BluetoothDevice device : gattServerDevices) {
+                        String bluetoothStats = String.format(Locale.getDefault(), "%s,%s,GATT_SERVER,%s,%s,%d,%d,%d,%d\n",
+                                timestamp,
+                                statResponseId,
+                                device.getName(),
+                                device.getAddress(),
+                                device.getBluetoothClass().getMajorDeviceClass(),
+                                device.getBluetoothClass().getDeviceClass(),
+                                device.getBondState(),
+                                device.getType());
+
+                        Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.BLUETOOTH_STATS_FILE_NAME, bluetoothStats);
+                    }
+                }
+
+                BluetoothLeScanner btScanner = BluetoothAdapter.getDefaultAdapter().getBluetoothLeScanner();
+                btScanner.startScan(new ScanCallback() {
+                    @Override
+                    public void onScanResult(int callbackType, android.bluetooth.le.ScanResult result) {
+                        super.onScanResult(callbackType, result);
+
+                        String resultStr = String.format(Locale.getDefault(), "%s,LE,%d,%d,%d,%d,%b,%b",
+                                Utils.GetTimeStamp(System.currentTimeMillis()),
+                                result.getAdvertisingSid(),
+                                result.getDataStatus(),
+                                result.getRssi(),
+                                result.getTxPower(),
+                                result.isConnectable(),
+                                result.isLegacy());
+
+                        Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.BLUETOOTH_STATS_FILE_NAME, resultStr);
+                    }
+                });
+
+                mBluetoothProfilingThreadHandler.postDelayed(this, 5000);
+            }
+        });
     }
 
     private void startApplicationsStatisticTracking() {
@@ -380,21 +479,23 @@ public class ProfilingService extends Service {
         }
 
         mLocationProfilingThreadHandler.removeCallbacksAndMessages(null);
-        mLocationProfilingThread.getLooper().quitSafely();
+        mLocationProfilingThread.quitSafely();
     }
 
     void stopWifiTracking() {
         if (mWifiScanReceiver != null)
             unregisterReceiver(mWifiScanReceiver);
 
-        WorkManager.getInstance(getApplicationContext()).cancelUniqueWork(PUSH_APP_STAT_SCAN_WORK_TAG);
+        mWifiProfilingThreadHandler.removeCallbacksAndMessages(null);
+        mWifiProfilingThread.quitSafely();
     }
 
     void stopBluetoothTracking() {
         if (mBluetoothBroadcastReceiver != null)
             unregisterReceiver(mBluetoothBroadcastReceiver);
 
-        WorkManager.getInstance(getApplicationContext()).cancelUniqueWork(PUSH_BT_SCAN_WORK_TAG);
+        mBluetoothProfilingThreadHandler.removeCallbacksAndMessages(null);
+        mBluetoothProfilingThread.quitSafely();
     }
 
     void stopApplicationsStatisticTracking() {
