@@ -429,7 +429,7 @@ public class ProfilingService extends Service {
         }
 
         mLocationProfilingThreadHandler.removeCallbacksAndMessages(null);
-        mServiceLooper.quitSafely();
+        mLocationProfilingThread.getLooper().quitSafely();
     }
 
     void stopWifiTracking() {
