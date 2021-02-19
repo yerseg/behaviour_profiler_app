@@ -56,7 +56,6 @@ import java.util.concurrent.CancellationException;
 public class ProfilingService extends Service {
 
     public static final String NOTIFICATION_CHANNEL_ID = "com.yerseg.profiler.ProfilingService";
-    public static final String PUSH_APP_STAT_SCAN_WORK_TAG = "com.yerseg.profiler.APP_STAT_SCAN_WORK";
 
     public static final int WIFI_STATS_UPDATE_FREQ = 5000;
     public static final int BLUETOOTH_STATS_UPDATE_FREQ = 5000;
@@ -293,7 +292,7 @@ public class ProfilingService extends Service {
 
                 Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.WIFI_STATS_FILE_NAME, connectionInfo);
 
-                mWifiProfilingThreadHandler.postDelayed(this, 5000);
+                mWifiProfilingThreadHandler.postDelayed(this, WIFI_STATS_UPDATE_FREQ);
             }
         });
     }
@@ -415,7 +414,7 @@ public class ProfilingService extends Service {
                     }
                 });
 
-                mBluetoothProfilingThreadHandler.postDelayed(this, 5000);
+                mBluetoothProfilingThreadHandler.postDelayed(this, BLUETOOTH_STATS_UPDATE_FREQ);
             }
         });
     }

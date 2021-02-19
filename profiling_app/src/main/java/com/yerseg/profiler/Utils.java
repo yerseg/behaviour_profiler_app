@@ -16,6 +16,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -152,6 +153,23 @@ public class Utils {
             } catch (Exception e) {
                 e.printStackTrace();
             }
+        }
+    }
+
+    public static class MutexHolder {
+        private static volatile ReentrantLock mutex;
+
+        public static ReentrantLock getMutex() {
+            ReentrantLock localInstance = mutex;
+            if (localInstance == null) {
+                synchronized (ReentrantLock.class) {
+                    localInstance = mutex;
+                    if (localInstance == null) {
+                        mutex = localInstance = new ReentrantLock();
+                    }
+                }
+            }
+            return localInstance;
         }
     }
 }

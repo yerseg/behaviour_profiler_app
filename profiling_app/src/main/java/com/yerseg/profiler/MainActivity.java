@@ -2,7 +2,6 @@ package com.yerseg.profiler;
 
 import android.Manifest;
 import android.app.AppOpsManager;
-import android.bluetooth.BluetoothAdapter;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -75,11 +74,11 @@ public class MainActivity extends FragmentActivity {
                     return;
                 }
 
-                BluetoothAdapter mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+                /*BluetoothAdapter mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
                 if (mBluetoothAdapter == null || !mBluetoothAdapter.isEnabled()) {
                     showLongToast("Turn on Bluetooth please!");
                     return;
-                }
+                }*/
 
                 LocationManager locationManager = (LocationManager) getApplicationContext().getSystemService(Context.LOCATION_SERVICE);
                 if (!locationManager.isLocationEnabled() ||
@@ -282,13 +281,13 @@ public class MainActivity extends FragmentActivity {
 
             File tempDir = Utils.getTempDataFilesDir(getApplicationContext());
 
-            MutexHolder.getMutex().lock();
+            Utils.MutexHolder.getMutex().lock();
             try {
                 moveDataFilesToTempDirectory(ProfilingService.STAT_FILE_NAMES);
             } catch (Exception e) {
                 e.printStackTrace();
             } finally {
-                MutexHolder.getMutex().unlock();
+                Utils.MutexHolder.getMutex().unlock();
             }
 
             List<File> filesList = new LinkedList<File>();
