@@ -202,55 +202,6 @@ public class ProfilingService extends Service {
         }
     }
 
-    private void startWifiTracking() {
-        final WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-
-        mWifiScanReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context c, Intent intent) {
-                if (intent.getBooleanExtra(WifiManager.EXTRA_RESULTS_UPDATED, false)) {
-                    new Thread(new Runnable() {
-                        @Override
-                        public void run() {
-                            final WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-                            List<ScanResult> scanResults = wifiManager.getScanResults();
-
-                            String statResponseId = UUID.randomUUID().toString();
-                            String timestamp = Utils.GetTimeStamp(System.currentTimeMillis());
-
-                            for (ScanResult result : scanResults) {
-                                String wifiStats = String.format(Locale.getDefault(), "%s,%s,%s,%s,%s,%d,%d,%d,%d,%d,%s,%d,%s,%b,%b\n",
-                                        timestamp,
-                                        statResponseId,
-                                        result.BSSID,
-                                        result.SSID,
-                                        result.capabilities,
-                                        result.centerFreq0,
-                                        result.centerFreq1,
-                                        result.channelWidth,
-                                        result.frequency,
-                                        result.level,
-                                        result.operatorFriendlyName.length(),
-                                        result.timestamp,
-                                        result.venueName,
-                                        result.is80211mcResponder(),
-                                        result.isPasspointNetwork());
-
-                                Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), WIFI_STATS_FILE_NAME, wifiStats);
-                            }
-                        }
-                    }).start();
-                }
-            }
-        };
-
-        IntentFilter intentFilter = new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION);
-        registerReceiver(mWifiScanReceiver, intentFilter);
-
-        OneTimeWorkRequest refreshWork = new OneTimeWorkRequest.Builder(WifiProfilingWorker.class).build();
-        WorkManager.getInstance(getApplicationContext()).enqueueUniqueWork(PUSH_WIFI_SCAN_WORK_TAG, ExistingWorkPolicy.KEEP, refreshWork);
-    }
-
     private void startWifiTracking2() {
         final WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
 
