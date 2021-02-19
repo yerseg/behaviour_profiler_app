@@ -281,13 +281,10 @@ public class MainActivity extends FragmentActivity {
 
             File tempDir = Utils.getTempDataFilesDir(getApplicationContext());
 
-            Utils.MutexHolder.getMutex().lock();
             try {
                 moveDataFilesToTempDirectory(ProfilingService.STAT_FILE_NAMES);
             } catch (Exception e) {
                 e.printStackTrace();
-            } finally {
-                Utils.MutexHolder.getMutex().unlock();
             }
 
             List<File> filesList = new LinkedList<File>();

@@ -48,11 +48,9 @@ public class Utils {
         return directoryFile;
     }
 
-    public static void moveFile(File src, File dst) throws IOException {
-        FileChannel inChannel = new FileInputStream(src).getChannel();
-        FileChannel outChannel = new FileOutputStream(dst).getChannel();
+    public static synchronized void moveFile(File src, File dst) throws IOException {
 
-        try {
+        try (FileChannel inChannel = new FileInputStream(src).getChannel(); FileChannel outChannel = new FileOutputStream(dst).getChannel()) {
             inChannel.transferTo(0, inChannel.size(), outChannel);
 
             if (src.exists()) {
@@ -60,15 +58,10 @@ public class Utils {
             }
         } catch (Exception ex) {
             ex.printStackTrace();
-        } finally {
-            if (inChannel != null)
-                inChannel.close();
-            if (outChannel != null)
-                outChannel.close();
         }
     }
 
-    public static boolean deleteFile(File file) {
+    public static synchronized boolean deleteFile(File file) {
         boolean isDeleted = false;
         if (file.exists()) {
             try {
@@ -96,12 +89,10 @@ public class Utils {
     }
 
     public static class FileWriter {
-        public static void writeFile(File directory, String fileName, String data) {
+        public static synchronized void writeFile(File directory, String fileName, String data) {
             Log.d("Profiler [FileWriter]", String.format(Locale.getDefault(), "\t%d\twriteFile()", Process.myTid()));
 
             try {
-                MutexHolder.getMutex().lock();
-
                 File file = new File(directory, fileName);
                 java.io.FileWriter writer = new java.io.FileWriter(file, true);
 
@@ -111,8 +102,6 @@ public class Utils {
 
             } catch (Exception e) {
                 e.printStackTrace();
-            } finally {
-                MutexHolder.getMutex().unlock();
             }
         }
     }
@@ -153,23 +142,6 @@ public class Utils {
             } catch (Exception e) {
                 e.printStackTrace();
             }
-        }
-    }
-
-    public static class MutexHolder {
-        private static volatile ReentrantLock mutex;
-
-        public static ReentrantLock getMutex() {
-            ReentrantLock localInstance = mutex;
-            if (localInstance == null) {
-                synchronized (ReentrantLock.class) {
-                    localInstance = mutex;
-                    if (localInstance == null) {
-                        mutex = localInstance = new ReentrantLock();
-                    }
-                }
-            }
-            return localInstance;
         }
     }
 }
