@@ -42,10 +42,11 @@ public class ReminderNotificationPeriodicWorker extends Worker {
                 .setPriority(NotificationManager.IMPORTANCE_MAX)
                 .setCategory(Notification.CATEGORY_REMINDER)
                 .setContentIntent(resultPendingIntent)
-                .setAutoCancel(true)
+                .setAutoCancel(false)
+                .setOngoing(true)
                 .build();
 
-        notificationManager.notify(2, notification);
+        notificationManager.notify(ProfilingService.REMINDER_NOTIFICATION_ID, notification);
 
         return Result.success();
     }

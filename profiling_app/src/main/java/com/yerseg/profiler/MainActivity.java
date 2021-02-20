@@ -2,6 +2,7 @@ package com.yerseg.profiler;
 
 import android.Manifest;
 import android.app.AppOpsManager;
+import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -313,6 +314,9 @@ public class MainActivity extends FragmentActivity {
                     String packageName = resolveInfo.activityInfo.packageName;
                     this.grantUriPermission(packageName, contentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
                 }
+
+                NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                notificationManager.cancel(ProfilingService.REMINDER_NOTIFICATION_ID);
 
                 startActivity(chooser);
             }
