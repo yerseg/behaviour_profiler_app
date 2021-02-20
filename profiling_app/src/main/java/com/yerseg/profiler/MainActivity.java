@@ -3,6 +3,7 @@ package com.yerseg.profiler;
 import android.Manifest;
 import android.app.AppOpsManager;
 import android.app.NotificationManager;
+import android.bluetooth.BluetoothAdapter;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -75,11 +76,11 @@ public class MainActivity extends FragmentActivity {
                     return;
                 }
 
-                /*BluetoothAdapter mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+                BluetoothAdapter mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
                 if (mBluetoothAdapter == null || !mBluetoothAdapter.isEnabled()) {
                     showLongToast("Turn on Bluetooth please!");
                     return;
-                }*/
+                }
 
                 LocationManager locationManager = (LocationManager) getApplicationContext().getSystemService(Context.LOCATION_SERVICE);
                 if (!locationManager.isLocationEnabled() ||
