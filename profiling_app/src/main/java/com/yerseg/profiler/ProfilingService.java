@@ -54,6 +54,9 @@ public class ProfilingService extends Service {
 
     public static final String PUSH_REMINDER_NOTIFICATION_WORK_TAG = "com.yerseg.profiler.REMINDER_NOTIFICATION_WORK";
 
+    public static final int SERVICE_NOTIFICATION_ID = 1;
+    public static final int REMINDER_NOTIFICATION_ID = 2;
+
     public static final int WIFI_STATS_UPDATE_FREQ = 5000;
     public static final int BLUETOOTH_STATS_UPDATE_FREQ = 5000;
     public static final int APP_STATS_UPDATE_FREQ = 5000;
@@ -122,7 +125,7 @@ public class ProfilingService extends Service {
         startApplicationsStatisticTracking();
         startAnyBroadcastsTracking();
 
-        PeriodicWorkRequest notifyWorkRequest = new PeriodicWorkRequest.Builder(ReminderNotificationPeriodicWorker.class, Duration.ofHours(2)).setInitialDelay(Duration.ofMinutes(5)).build();
+        PeriodicWorkRequest notifyWorkRequest = new PeriodicWorkRequest.Builder(ReminderNotificationPeriodicWorker.class, Duration.ofHours(2)).setInitialDelay(Duration.ofSeconds(30)).build();
         WorkManager.getInstance(getApplicationContext()).enqueueUniquePeriodicWork(PUSH_REMINDER_NOTIFICATION_WORK_TAG, ExistingPeriodicWorkPolicy.REPLACE, notifyWorkRequest);
 
         return START_STICKY;
@@ -144,8 +147,11 @@ public class ProfilingService extends Service {
         stopApplicationsStatisticTracking();
         stopAnyBroadcastsTracking();
 
+        WorkManager.getInstance(getApplicationContext()).cancelUniqueWork(PUSH_REMINDER_NOTIFICATION_WORK_TAG);
+
         NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        notificationManager.cancel(1);
+        notificationManager.cancel(SERVICE_NOTIFICATION_ID);
+        notificationManager.cancel(REMINDER_NOTIFICATION_ID);
 
         synchronized (this) {
             isRunning = false;
@@ -179,7 +185,7 @@ public class ProfilingService extends Service {
                 .setCategory(Notification.CATEGORY_SERVICE)
                 .build();
 
-        startForeground(1, notification);
+        startForeground(SERVICE_NOTIFICATION_ID, notification);
     }
 
     private void startLocationTracking() {
