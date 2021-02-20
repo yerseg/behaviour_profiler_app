@@ -33,6 +33,9 @@ import android.util.Log;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
+import androidx.work.ExistingPeriodicWorkPolicy;
+import androidx.work.PeriodicWorkRequest;
+import androidx.work.WorkManager;
 
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationCallback;
@@ -40,7 +43,7 @@ import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 
-import java.util.Arrays;
+import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -48,6 +51,8 @@ import java.util.UUID;
 public class ProfilingService extends Service {
 
     public static final String NOTIFICATION_CHANNEL_ID = "com.yerseg.profiler.ProfilingService";
+
+    public static final String PUSH_REMINDER_NOTIFICATION_WORK_TAG = "com.yerseg.profiler.REMINDER_NOTIFICATION_WORK";
 
     public static final int WIFI_STATS_UPDATE_FREQ = 5000;
     public static final int BLUETOOTH_STATS_UPDATE_FREQ = 5000;
@@ -116,6 +121,9 @@ public class ProfilingService extends Service {
         startBluetoothTracking();
         startApplicationsStatisticTracking();
         startAnyBroadcastsTracking();
+
+        PeriodicWorkRequest notifyWorkRequest = new PeriodicWorkRequest.Builder(ReminderNotificationPeriodicWorker.class, Duration.ofHours(2)).setInitialDelay(Duration.ofMinutes(5)).build();
+        WorkManager.getInstance(getApplicationContext()).enqueueUniquePeriodicWork(PUSH_REMINDER_NOTIFICATION_WORK_TAG, ExistingPeriodicWorkPolicy.REPLACE, notifyWorkRequest);
 
         return START_STICKY;
     }

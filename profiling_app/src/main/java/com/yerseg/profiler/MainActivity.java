@@ -201,11 +201,7 @@ public class MainActivity extends FragmentActivity {
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        if (requestCode == PERMISSIONS_REQUEST_ID && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            mIsPermissionsGranted = true;
-        } else {
-            mIsPermissionsGranted = false;
-        }
+        mIsPermissionsGranted = requestCode == PERMISSIONS_REQUEST_ID && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
     }
 
     @Override
