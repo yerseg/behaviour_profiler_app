@@ -171,7 +171,11 @@ public class MainActivity extends FragmentActivity {
     }
 
     private boolean isProfilingServiceRunning() {
-        return ProfilingService.isRunning;
+        boolean isRunning = false;
+        synchronized (this) {
+            isRunning = ProfilingService.isRunning;
+        }
+        return isRunning;
     }
 
     private boolean isUsageStatsPermissionsGranted() {
