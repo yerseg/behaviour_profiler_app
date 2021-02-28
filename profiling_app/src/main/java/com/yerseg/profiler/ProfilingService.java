@@ -307,16 +307,24 @@ public class ProfilingService extends Service {
                 if (BluetoothDevice.ACTION_FOUND.equals(action)) {
                     new Thread(() -> {
                         try {
-                            BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-                            String bluetoothStats = String.format(Locale.getDefault(), "%s;%s;%d;%d;%d;%d\n",
-                                    Utils.GetTimeStamp(System.currentTimeMillis()),
-                                    device.getAddress(),
-                                    device.getBluetoothClass().getMajorDeviceClass(),
-                                    device.getBluetoothClass().getDeviceClass(),
-                                    device.getBondState(),
-                                    device.getType());
+                            BluetoothDevice device = null;
+                            try {
+                                device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+                            } catch (Exception ex) {
+                            }
 
-                            Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), BLUETOOTH_STATS_FILE_NAME, bluetoothStats);
+                            if (device != null) {
+                                String bluetoothStats = String.format(Locale.getDefault(), "%s;%s;%s;%d;%d;%d;%d\n",
+                                        Utils.GetTimeStamp(System.currentTimeMillis()),
+                                        intent.getAction(),
+                                        device.getAddress(),
+                                        device.getBluetoothClass().getMajorDeviceClass(),
+                                        device.getBluetoothClass().getDeviceClass(),
+                                        device.getBondState(),
+                                        device.getType());
+
+                                Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), BLUETOOTH_STATS_FILE_NAME, bluetoothStats);
+                            }
                         } catch (Exception ex) {
                             ex.printStackTrace();
                         }
@@ -325,8 +333,18 @@ public class ProfilingService extends Service {
             }
         };
 
-        IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
-        registerReceiver(mBluetoothBroadcastReceiver, filter);
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(BluetoothDevice.ACTION_ACL_CONNECTED);
+        intentFilter.addAction(BluetoothDevice.ACTION_ACL_DISCONNECT_REQUESTED);
+        intentFilter.addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED);
+        intentFilter.addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED);
+        intentFilter.addAction(BluetoothDevice.ACTION_CLASS_CHANGED);
+        intentFilter.addAction(BluetoothDevice.ACTION_FOUND);
+        intentFilter.addAction(BluetoothDevice.ACTION_NAME_CHANGED);
+        intentFilter.addAction(BluetoothDevice.ACTION_PAIRING_REQUEST);
+        intentFilter.addAction(BluetoothDevice.ACTION_UUID);
+
+        registerReceiver(mBluetoothBroadcastReceiver, intentFilter);
 
         mBluetoothProfilingThread = new HandlerThread("BluetoothProfilingThread", Process.THREAD_PRIORITY_FOREGROUND);
         mBluetoothProfilingThread.start();
@@ -340,9 +358,12 @@ public class ProfilingService extends Service {
                 try {
                     final BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
 
-                    if (bluetoothAdapter != null)
-                        if (!bluetoothAdapter.isDiscovering())
-                            BluetoothAdapter.getDefaultAdapter().startDiscovery();
+                    if (bluetoothAdapter != null) {
+                        //if (!bluetoothAdapter.isDiscovering())
+                        boolean rc = bluetoothAdapter.startDiscovery();
+                        if (rc)
+                            Log.w("BT", "CHECK!");
+                    }
 
                     BluetoothLeScanner btScanner = BluetoothAdapter.getDefaultAdapter().getBluetoothLeScanner();
                     btScanner.startScan(new ScanCallback() {
@@ -362,7 +383,7 @@ public class ProfilingService extends Service {
                             Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.BLUETOOTH_STATS_FILE_NAME, resultStr);
                         }
                     });
-                } catch(Exception ex) {
+                } catch (Exception ex) {
                     ex.printStackTrace();
                 }
 
