@@ -68,7 +68,6 @@ public class ProfilingService extends Service {
     public static final String APP_STATS_FILE_NAME = "app.data";
     public static final String BLUETOOTH_STATS_FILE_NAME = "bt.data";
     public static final String LOCATION_STATS_FILE_NAME = "location.data";
-    public static final String SCREEN_STATE_STATS_FILE_NAME = "screen.data";
     public static final String WIFI_STATS_FILE_NAME = "wifi.data";
     public static final String BROADCASTS_STATS_FILE_NAME = "broadcasts.data";
 
@@ -76,7 +75,6 @@ public class ProfilingService extends Service {
             APP_STATS_FILE_NAME,
             BLUETOOTH_STATS_FILE_NAME,
             LOCATION_STATS_FILE_NAME,
-            SCREEN_STATE_STATS_FILE_NAME,
             WIFI_STATS_FILE_NAME,
             BROADCASTS_STATS_FILE_NAME
     };
@@ -94,7 +92,6 @@ public class ProfilingService extends Service {
     private Handler mBluetoothProfilingThreadHandler;
     private Handler mApplicationProfilingThreadHandler;
 
-    private BroadcastReceiver mScreenStatusBroadcastReceiver;
     private BroadcastReceiver mWifiScanReceiver;
     private BroadcastReceiver mBluetoothBroadcastReceiver;
     private BroadcastReceiver mAnyBroadcastReceiver;
@@ -118,14 +115,13 @@ public class ProfilingService extends Service {
         super.onStartCommand(intent, flags, startId);
         Log.d("Profiler [Service]", String.format(Locale.getDefault(), "\t%d\tonStartCommand()", Process.myTid()));
 
-        startScreenStateTracking();
         startLocationTracking();
         startWifiTracking();
         startBluetoothTracking();
         startApplicationsStatisticTracking();
         startAnyBroadcastsTracking();
 
-        PeriodicWorkRequest notifyWorkRequest = new PeriodicWorkRequest.Builder(ReminderNotificationPeriodicWorker.class, Duration.ofHours(2)).setInitialDelay(Duration.ofSeconds(30)).build();
+        PeriodicWorkRequest notifyWorkRequest = new PeriodicWorkRequest.Builder(ReminderNotificationPeriodicWorker.class, Duration.ofHours(2)).setInitialDelay(Duration.ofMinutes(5)).build();
         WorkManager.getInstance(getApplicationContext()).enqueueUniquePeriodicWork(PUSH_REMINDER_NOTIFICATION_WORK_TAG, ExistingPeriodicWorkPolicy.REPLACE, notifyWorkRequest);
 
         return START_STICKY;
@@ -140,7 +136,6 @@ public class ProfilingService extends Service {
         Log.d("Profiler [Service]", String.format(Locale.getDefault(), "\t%d\tonDestroy()", Process.myTid()));
         super.onDestroy();
 
-        stopScreenStateTracking();
         stopLocationTracking();
         stopWifiTracking();
         stopBluetoothTracking();
@@ -179,8 +174,10 @@ public class ProfilingService extends Service {
         notificationManager.createNotificationChannel(notificationChannel);
 
         NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID);
-        Notification notification = notificationBuilder.setOngoing(true)
-                .setContentTitle("Profiler App is running")
+        Notification notification = notificationBuilder
+                .setOngoing(true)
+                .setContentTitle("Profiler")
+                .setContentText("Profiling service is running and collecting statistics")
                 .setPriority(NotificationManager.IMPORTANCE_MAX)
                 .setCategory(Notification.CATEGORY_SERVICE)
                 .build();
@@ -203,16 +200,20 @@ public class ProfilingService extends Service {
                     public void onLocationResult(LocationResult result) {
                         Log.d("Profiler [LocationStat]", String.format(Locale.getDefault(), "\t%d\tonLocationResult()", Process.myTid()));
 
-                        Location location = result.getLastLocation();
-                        String locationStats = String.format(Locale.getDefault(), "%s;%f;%f;%f;%f\n",
-                                Utils.GetTimeStamp(System.currentTimeMillis()),
-                                location.getAccuracy(),
-                                location.getAltitude(),
-                                location.getLatitude(),
-                                location.getLongitude()
-                        );
+                        try {
+                            Location location = result.getLastLocation();
+                            String locationStats = String.format(Locale.getDefault(), "%s;%f;%f;%f;%f\n",
+                                    Utils.GetTimeStamp(System.currentTimeMillis()),
+                                    location.getAccuracy(),
+                                    location.getAltitude(),
+                                    location.getLatitude(),
+                                    location.getLongitude()
+                            );
 
-                        Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), LOCATION_STATS_FILE_NAME, locationStats);
+                            Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), LOCATION_STATS_FILE_NAME, locationStats);
+                        } catch (Exception ex) {
+                            ex.printStackTrace();
+                        }
                     }
                 };
 
@@ -228,15 +229,12 @@ public class ProfilingService extends Service {
     }
 
     private void startWifiTracking() {
-        final WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-
         mWifiScanReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context c, Intent intent) {
                 if (intent.getBooleanExtra(WifiManager.EXTRA_RESULTS_UPDATED, false)) {
-                    new Thread(new Runnable() {
-                        @Override
-                        public void run() {
+                    new Thread(() -> {
+                        try {
                             final WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
                             List<ScanResult> scanResults = wifiManager.getScanResults();
 
@@ -254,6 +252,8 @@ public class ProfilingService extends Service {
 
                                 Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), WIFI_STATS_FILE_NAME, wifiStats);
                             }
+                        } catch (Exception ex) {
+                            ex.printStackTrace();
                         }
                     }).start();
                 }
@@ -272,23 +272,28 @@ public class ProfilingService extends Service {
         mWifiProfilingThreadHandler.post(new Runnable() {
             @Override
             public void run() {
-                WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-                wifiManager.startScan();
+                try {
+                    final WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+                    //noinspection deprecation
+                    wifiManager.startScan();
 
-                String timestamp = Utils.GetTimeStamp(System.currentTimeMillis());
-                WifiInfo currentInfo = wifiManager.getConnectionInfo();
+                    final String timestamp = Utils.GetTimeStamp(System.currentTimeMillis());
+                    final WifiInfo currentInfo = wifiManager.getConnectionInfo();
 
-                String connectionInfo = String.format(Locale.getDefault(), "%s;CONN;%s;%d;%d;%d;%d;%d;%s\n",
-                        timestamp,
-                        currentInfo.getBSSID(),
-                        currentInfo.getFrequency(),
-                        currentInfo.getIpAddress(),
-                        currentInfo.getLinkSpeed(),
-                        currentInfo.getNetworkId(),
-                        currentInfo.getRssi(),
-                        currentInfo.getSSID());
+                    final String connectionInfo = String.format(Locale.getDefault(), "%s;CONN;%s;%d;%d;%d;%d;%d;%s\n",
+                            timestamp,
+                            currentInfo.getBSSID(),
+                            currentInfo.getFrequency(),
+                            currentInfo.getIpAddress(),
+                            currentInfo.getLinkSpeed(),
+                            currentInfo.getNetworkId(),
+                            currentInfo.getRssi(),
+                            currentInfo.getSSID());
 
-                Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.WIFI_STATS_FILE_NAME, connectionInfo);
+                    Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.WIFI_STATS_FILE_NAME, connectionInfo);
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
 
                 mWifiProfilingThreadHandler.postDelayed(this, WIFI_STATS_UPDATE_FREQ);
             }
@@ -298,12 +303,11 @@ public class ProfilingService extends Service {
     private void startBluetoothTracking() {
         mBluetoothBroadcastReceiver = new BroadcastReceiver() {
             public void onReceive(Context context, Intent intent) {
-                String action = intent.getAction();
+                final String action = intent.getAction();
                 if (BluetoothDevice.ACTION_FOUND.equals(action)) {
-                    BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-                    new Thread(new Runnable() {
-                        @Override
-                        public void run() {
+                    new Thread(() -> {
+                        try {
+                            BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
                             String bluetoothStats = String.format(Locale.getDefault(), "%s;%s;%d;%d;%d;%d\n",
                                     Utils.GetTimeStamp(System.currentTimeMillis()),
                                     device.getAddress(),
@@ -313,6 +317,8 @@ public class ProfilingService extends Service {
                                     device.getType());
 
                             Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), BLUETOOTH_STATS_FILE_NAME, bluetoothStats);
+                        } catch (Exception ex) {
+                            ex.printStackTrace();
                         }
                     }).start();
                 }
@@ -331,31 +337,34 @@ public class ProfilingService extends Service {
         mBluetoothProfilingThreadHandler.post(new Runnable() {
             @Override
             public void run() {
-                String statResponseId = UUID.randomUUID().toString();
-                final BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+                try {
+                    final BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
 
-                if (bluetoothAdapter != null)
-                    if (!bluetoothAdapter.isDiscovering())
-                        BluetoothAdapter.getDefaultAdapter().startDiscovery();
+                    if (bluetoothAdapter != null)
+                        if (!bluetoothAdapter.isDiscovering())
+                            BluetoothAdapter.getDefaultAdapter().startDiscovery();
 
-                BluetoothLeScanner btScanner = BluetoothAdapter.getDefaultAdapter().getBluetoothLeScanner();
-                btScanner.startScan(new ScanCallback() {
-                    @Override
-                    public void onScanResult(int callbackType, android.bluetooth.le.ScanResult result) {
-                        super.onScanResult(callbackType, result);
+                    BluetoothLeScanner btScanner = BluetoothAdapter.getDefaultAdapter().getBluetoothLeScanner();
+                    btScanner.startScan(new ScanCallback() {
+                        @Override
+                        public void onScanResult(int callbackType, android.bluetooth.le.ScanResult result) {
+                            super.onScanResult(callbackType, result);
 
-                        String resultStr = String.format(Locale.getDefault(), "%s;LE;%d;%d;%d;%d;%b;%b\n",
-                                Utils.GetTimeStamp(System.currentTimeMillis()),
-                                result.getAdvertisingSid(),
-                                result.getDataStatus(),
-                                result.getRssi(),
-                                result.getTxPower(),
-                                result.isConnectable(),
-                                result.isLegacy());
+                            String resultStr = String.format(Locale.getDefault(), "%s;LE;%d;%d;%d;%d;%b;%b\n",
+                                    Utils.GetTimeStamp(System.currentTimeMillis()),
+                                    result.getAdvertisingSid(),
+                                    result.getDataStatus(),
+                                    result.getRssi(),
+                                    result.getTxPower(),
+                                    result.isConnectable(),
+                                    result.isLegacy());
 
-                        Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.BLUETOOTH_STATS_FILE_NAME, resultStr);
-                    }
-                });
+                            Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.BLUETOOTH_STATS_FILE_NAME, resultStr);
+                        }
+                    });
+                } catch(Exception ex) {
+                    ex.printStackTrace();
+                }
 
                 mBluetoothProfilingThreadHandler.postDelayed(this, BLUETOOTH_STATS_UPDATE_FREQ);
             }
@@ -372,49 +381,59 @@ public class ProfilingService extends Service {
         mApplicationProfilingThreadHandler.post(new Runnable() {
             @Override
             public void run() {
-                Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.APP_STATS_FILE_NAME, getStatisticsForWritingToFile());
+                try {
+                    Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.APP_STATS_FILE_NAME, getStatisticsForWritingToFile());
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+
                 mApplicationProfilingThreadHandler.postDelayed(this, APP_STATS_UPDATE_FREQ);
             }
 
             private String getStatisticsForWritingToFile() {
-                long beginTime = java.lang.System.currentTimeMillis() - SystemClock.elapsedRealtime();
-                long endTime = java.lang.System.currentTimeMillis();
+                try {
+                    long beginTime = java.lang.System.currentTimeMillis() - SystemClock.elapsedRealtime();
+                    long endTime = java.lang.System.currentTimeMillis();
 
-                UsageStatsManager usageStatsManager = (UsageStatsManager) getApplicationContext().getSystemService(Context.USAGE_STATS_SERVICE);
+                    UsageStatsManager usageStatsManager = (UsageStatsManager) getApplicationContext().getSystemService(Context.USAGE_STATS_SERVICE);
 
-                String statResponseId = UUID.randomUUID().toString();
-                String timestamp = Utils.GetTimeStamp(endTime);
+                    String statResponseId = UUID.randomUUID().toString();
+                    String timestamp = Utils.GetTimeStamp(endTime);
 
-                StringBuilder statistic = new StringBuilder();
+                    StringBuilder statistic = new StringBuilder();
 
-                List<UsageStats> usageStatsList = usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, beginTime, endTime);
+                    List<UsageStats> usageStatsList = usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, beginTime, endTime);
 
-                for (UsageStats usageStats : usageStatsList) {
-                    statistic.append(String.format(Locale.getDefault(), "%s;%s;UsageStats;%s;%d;%d;%d;%d\n",
-                            timestamp,
-                            statResponseId,
-                            usageStats.getPackageName(),
-                            usageStats.getFirstTimeStamp(),
-                            usageStats.getLastTimeStamp(),
-                            usageStats.getLastTimeUsed(),
-                            usageStats.getTotalTimeInForeground()));
+                    for (UsageStats usageStats : usageStatsList) {
+                        statistic.append(String.format(Locale.getDefault(), "%s;%s;UsageStats;%s;%d;%d;%d;%d\n",
+                                timestamp,
+                                statResponseId,
+                                usageStats.getPackageName(),
+                                usageStats.getFirstTimeStamp(),
+                                usageStats.getLastTimeStamp(),
+                                usageStats.getLastTimeUsed(),
+                                usageStats.getTotalTimeInForeground()));
+                    }
+
+                    List<EventStats> eventStatsList = usageStatsManager.queryEventStats(UsageStatsManager.INTERVAL_DAILY, beginTime, endTime);
+
+                    for (EventStats eventStat : eventStatsList) {
+                        statistic.append(String.format(Locale.getDefault(), "%s;%s;EventStats;%d;%d;%d;%d;%d;%d\n",
+                                timestamp,
+                                statResponseId,
+                                eventStat.getCount(),
+                                eventStat.getEventType(),
+                                eventStat.getFirstTimeStamp(),
+                                eventStat.getLastTimeStamp(),
+                                eventStat.getLastEventTime(),
+                                eventStat.getTotalTime()));
+                    }
+
+                    return statistic.toString();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                    return "";
                 }
-
-                List<EventStats> eventStatsList = usageStatsManager.queryEventStats(UsageStatsManager.INTERVAL_DAILY, beginTime, endTime);
-
-                for (EventStats eventStat : eventStatsList) {
-                    statistic.append(String.format(Locale.getDefault(), "%s;%s;EventStats;%d;%d;%d;%d;%d;%d\n",
-                            timestamp,
-                            statResponseId,
-                            eventStat.getCount(),
-                            eventStat.getEventType(),
-                            eventStat.getFirstTimeStamp(),
-                            eventStat.getLastTimeStamp(),
-                            eventStat.getLastEventTime(),
-                            eventStat.getTotalTime()));
-                }
-
-                return statistic.toString();
             }
         });
     }
@@ -426,15 +445,16 @@ public class ProfilingService extends Service {
                 String intentType = intent.toString();
                 String intentAction = intent.getAction();
 
-                new Thread(new Runnable() {
-                    @Override
-                    public void run() {
+                new Thread(() -> {
+                    try {
                         String broadcastStats = String.format(Locale.getDefault(), "%s;%s;%s\n",
                                 Utils.GetTimeStamp(System.currentTimeMillis()),
                                 intentType,
                                 intentAction);
 
                         Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), BROADCASTS_STATS_FILE_NAME, broadcastStats);
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
                     }
                 }).start();
             }
@@ -443,41 +463,8 @@ public class ProfilingService extends Service {
         registerAnyBroadcastReceiver();
     }
 
-    private void startScreenStateTracking() {
-        mScreenStatusBroadcastReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                final String finalIntentActionName = intent.getAction();
-                new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        String screenStats = String.format(Locale.getDefault(), "%s;%s\n", Utils.GetTimeStamp(System.currentTimeMillis()), finalIntentActionName);
-                        Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), SCREEN_STATE_STATS_FILE_NAME, screenStats);
-                    }
-                }).start();
-            }
-        };
-
-        IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction(Intent.ACTION_USER_PRESENT);
-        intentFilter.addAction(Intent.ACTION_SHUTDOWN);
-        intentFilter.addAction(Intent.ACTION_DREAMING_STARTED);
-        intentFilter.addAction(Intent.ACTION_DREAMING_STOPPED);
-        intentFilter.addAction(Intent.ACTION_REBOOT);
-        intentFilter.addAction(Intent.ACTION_SCREEN_OFF);
-        intentFilter.addAction(Intent.ACTION_SCREEN_ON);
-        intentFilter.addAction(Intent.ACTION_USER_UNLOCKED);
-
-        registerReceiver(mScreenStatusBroadcastReceiver, intentFilter);
-    }
-
-    private void stopScreenStateTracking() {
-        if (mScreenStatusBroadcastReceiver != null)
-            unregisterReceiver(mScreenStatusBroadcastReceiver);
-    }
-
     private void stopLocationTracking() {
-        FusedLocationProviderClient fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
+        final FusedLocationProviderClient fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
         if (fusedLocationProviderClient != null) {
             fusedLocationProviderClient.removeLocationUpdates(mLocationCallback);
         }

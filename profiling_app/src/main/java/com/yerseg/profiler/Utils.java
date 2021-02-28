@@ -1,5 +1,6 @@
 package com.yerseg.profiler;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.os.Process;
 import android.util.Log;
@@ -21,6 +22,7 @@ import java.util.zip.ZipOutputStream;
 
 public class Utils {
 
+    @SuppressLint("SimpleDateFormat")
     public static String GetTimeStamp(long time) {
         return new SimpleDateFormat("dd.MM.yyyy_HH:mm:ss.SSS").format(new Date(time));
     }
@@ -47,7 +49,7 @@ public class Utils {
         return directoryFile;
     }
 
-    public static synchronized void moveFile(File src, File dst) throws IOException {
+    public static synchronized void moveFile(File src, File dst) {
 
         try (FileChannel inChannel = new FileInputStream(src).getChannel(); FileChannel outChannel = new FileOutputStream(dst).getChannel()) {
             inChannel.transferTo(0, inChannel.size(), outChannel);
@@ -114,7 +116,7 @@ public class Utils {
                 FileOutputStream dest = new FileOutputStream(zipFile);
                 ZipOutputStream out = new ZipOutputStream(new BufferedOutputStream(dest));
 
-                byte data[] = new byte[BUFFER];
+                byte[] data = new byte[BUFFER];
 
                 for (File file : files) {
                     try {
@@ -132,7 +134,9 @@ public class Utils {
                     } catch (Exception ex) {
                         ex.printStackTrace();
                     } finally {
-                        origin.close();
+                        if (origin != null) {
+                            origin.close();
+                        }
                     }
                 }
 

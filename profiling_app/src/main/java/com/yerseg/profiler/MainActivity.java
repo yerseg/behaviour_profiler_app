@@ -3,6 +3,7 @@ package com.yerseg.profiler;
 import android.Manifest;
 import android.app.AppOpsManager;
 import android.app.NotificationManager;
+import android.bluetooth.BluetoothAdapter;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -36,7 +37,6 @@ import java.util.Locale;
 
 public class MainActivity extends FragmentActivity {
 
-    private final static int REQUEST_ENABLE_BT = 1;
     private final static int PERMISSIONS_REQUEST_ID = 1001;
 
     Intent mProfilingServiceIntent;
@@ -53,57 +53,51 @@ public class MainActivity extends FragmentActivity {
         Button startButton = findViewById(R.id.profilingStartButton);
         Button stopButton = findViewById(R.id.profilingStopButton);
 
-        startButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (!mIsPermissionsGranted) {
-                    showLongToast("Grant permission please!");
-                    requestPermissions();
-                    return;
-                }
-
-                if (!isUsageStatsPermissionsGranted()) {
-                    Intent intent = new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS);
-                    showLongToast("Grant action usage permission please!");
-                    startActivityForResult(intent, 1);
-                    return;
-                }
-
-                WifiManager wifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
-                if (!wifiManager.isWifiEnabled()) {
-                    showLongToast("Turn on WiFi please!");
-                    return;
-                }
-
-                /*BluetoothAdapter mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-                if (mBluetoothAdapter == null || !mBluetoothAdapter.isEnabled()) {
-                    showLongToast("Turn on Bluetooth please!");
-                    return;
-                }*/
-
-                LocationManager locationManager = (LocationManager) getApplicationContext().getSystemService(Context.LOCATION_SERVICE);
-                if (!locationManager.isLocationEnabled() ||
-                        !locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
-                        !locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
-                    showLongToast("Turn on location services please!");
-                    return;
-                }
-
-                startService();
-                // Can crash when click on stop button before service completely start
-                startButton.setEnabled(false);
-                stopButton.setEnabled(true);
+        startButton.setOnClickListener(v -> {
+            if (!mIsPermissionsGranted) {
+                showLongToast("Grant permission please!");
+                requestPermissions();
+                return;
             }
+
+            if (!isUsageStatsPermissionsGranted()) {
+                Intent intent = new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS);
+                showLongToast("Grant action usage permission please!");
+                startActivityForResult(intent, 1);
+                return;
+            }
+
+            WifiManager wifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
+            if (!wifiManager.isWifiEnabled()) {
+                showLongToast("Turn on WiFi please!");
+                return;
+            }
+
+            BluetoothAdapter mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+            if (mBluetoothAdapter == null || !mBluetoothAdapter.isEnabled()) {
+                showLongToast("Turn on Bluetooth please!");
+                return;
+            }
+
+            LocationManager locationManager = (LocationManager) getApplicationContext().getSystemService(Context.LOCATION_SERVICE);
+            if (!locationManager.isLocationEnabled() ||
+                    !locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
+                    !locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
+                showLongToast("Turn on location services please!");
+                return;
+            }
+
+            startService();
+            // Can crash when click on stop button before service completely start
+            startButton.setEnabled(false);
+            stopButton.setEnabled(true);
         });
 
-        stopButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                stopService();
-                // Can crash when click on start button before service completely stop
-                stopButton.setEnabled(false);
-                startButton.setEnabled(true);
-            }
+        stopButton.setOnClickListener(v -> {
+            stopService();
+            // Can crash when click on start button before service completely stop
+            stopButton.setEnabled(false);
+            startButton.setEnabled(true);
         });
 
         TextView textView = findViewById(R.id.textInstruction);
@@ -112,25 +106,16 @@ public class MainActivity extends FragmentActivity {
         ProgressBar sendZipProgressBar = findViewById(R.id.sendZipProgressBar);
 
         FloatingActionButton emailSendButton = findViewById(R.id.SendDataByEmailButton);
-        emailSendButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                sendZipProgressBar.setVisibility(View.VISIBLE);
-                emailSendButton.setEnabled(false);
-                new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        onSendButtonClick();
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                sendZipProgressBar.setVisibility(View.GONE);
-                                emailSendButton.setEnabled(true);
-                            }
-                        });
-                    }
-                }).start();
-            }
+        emailSendButton.setOnClickListener(v -> {
+            sendZipProgressBar.setVisibility(View.VISIBLE);
+            emailSendButton.setEnabled(false);
+            new Thread(() -> {
+                onSendButtonClick();
+                runOnUiThread(() -> {
+                    sendZipProgressBar.setVisibility(View.GONE);
+                    emailSendButton.setEnabled(true);
+                });
+            }).start();
         });
     }
 
@@ -147,16 +132,6 @@ public class MainActivity extends FragmentActivity {
         requestPermissions();
     }
 
-    @Override
-    protected void onStop() {
-        super.onStop();
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-    }
-
     private void startService() {
         Intent mProfilingServiceIntent = new Intent(this, ProfilingService.class).putExtra("inputExtra", "ServiceControl");
         ContextCompat.startForegroundService(this, mProfilingServiceIntent);
@@ -170,7 +145,11 @@ public class MainActivity extends FragmentActivity {
     }
 
     private boolean isProfilingServiceRunning() {
-        return ProfilingService.isRunning;
+        boolean isRunning = false;
+        synchronized (this) {
+            isRunning = ProfilingService.isRunning;
+        }
+        return isRunning;
     }
 
     private boolean isUsageStatsPermissionsGranted() {
@@ -228,12 +207,7 @@ public class MainActivity extends FragmentActivity {
     }
 
     private void showLongToast(String text) {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                Toast.makeText(getApplicationContext(), text, Toast.LENGTH_LONG).show();
-            }
-        });
+        runOnUiThread(() -> Toast.makeText(getApplicationContext(), text, Toast.LENGTH_LONG).show());
     }
 
     private void moveDataFilesToTempDirectory(String[] dataFilesNames) {
@@ -252,25 +226,27 @@ public class MainActivity extends FragmentActivity {
 
         if (tempDir.exists()) {
             File[] tempFiles = tempDir.listFiles();
-            for (File tempFile : tempFiles) {
-                if (tempFile.exists()) {
-                    if (!Utils.deleteFile(tempFile)) {
-                        isAllFilesDeleted = false;
+            if (tempFiles != null) {
+                for (File tempFile : tempFiles) {
+                    if (tempFile.exists()) {
+                        if (!Utils.deleteFile(tempFile)) {
+                            isAllFilesDeleted = false;
+                        }
                     }
                 }
             }
         }
 
-        return isAllFilesDeleted;
+        return !isAllFilesDeleted;
     }
 
     private void onSendButtonClick() {
         Log.d("Profiler [MainActivity]", String.format(Locale.getDefault(), "\t%d\tonSendButtonClick()", Process.myTid()));
 
         try {
-            if (!deleteTempFiles()) {
+            if (deleteTempFiles()) {
                 Thread.sleep(300);
-                if (!deleteTempFiles()) {
+                if (deleteTempFiles()) {
                     Log.d("Profiler [MainActivity]", String.format(
                             Locale.getDefault(), "\t%d\tonSendButtonClick(), Msg: \"%s\"", Process.myTid(), "Temp directory is not clean!"));
                 }
@@ -284,7 +260,7 @@ public class MainActivity extends FragmentActivity {
                 e.printStackTrace();
             }
 
-            List<File> filesList = new LinkedList<File>();
+            List<File> filesList = new LinkedList<>();
 
             for (String fileName : ProfilingService.STAT_FILE_NAMES) {
                 File file = new File(tempDir, fileName);
@@ -321,7 +297,7 @@ public class MainActivity extends FragmentActivity {
                 startActivity(chooser);
             }
         } catch (Exception ex) {
-            Toast.makeText(getApplicationContext(), "Sending failed! Try again!", Toast.LENGTH_LONG);
+            showLongToast("ERROR! Sending failed! Try again!");
             ex.printStackTrace();
         }
     }
