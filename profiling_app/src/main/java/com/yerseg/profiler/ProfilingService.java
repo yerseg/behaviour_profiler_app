@@ -200,16 +200,20 @@ public class ProfilingService extends Service {
                     public void onLocationResult(LocationResult result) {
                         Log.d("Profiler [LocationStat]", String.format(Locale.getDefault(), "\t%d\tonLocationResult()", Process.myTid()));
 
-                        Location location = result.getLastLocation();
-                        String locationStats = String.format(Locale.getDefault(), "%s;%f;%f;%f;%f\n",
-                                Utils.GetTimeStamp(System.currentTimeMillis()),
-                                location.getAccuracy(),
-                                location.getAltitude(),
-                                location.getLatitude(),
-                                location.getLongitude()
-                        );
+                        try {
+                            Location location = result.getLastLocation();
+                            String locationStats = String.format(Locale.getDefault(), "%s;%f;%f;%f;%f\n",
+                                    Utils.GetTimeStamp(System.currentTimeMillis()),
+                                    location.getAccuracy(),
+                                    location.getAltitude(),
+                                    location.getLatitude(),
+                                    location.getLongitude()
+                            );
 
-                        Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), LOCATION_STATS_FILE_NAME, locationStats);
+                            Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), LOCATION_STATS_FILE_NAME, locationStats);
+                        } catch (Exception ex) {
+                            ex.printStackTrace();
+                        }
                     }
                 };
 
@@ -230,22 +234,26 @@ public class ProfilingService extends Service {
             public void onReceive(Context c, Intent intent) {
                 if (intent.getBooleanExtra(WifiManager.EXTRA_RESULTS_UPDATED, false)) {
                     new Thread(() -> {
-                        final WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-                        List<ScanResult> scanResults = wifiManager.getScanResults();
+                        try {
+                            final WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+                            List<ScanResult> scanResults = wifiManager.getScanResults();
 
-                        String statResponseId = UUID.randomUUID().toString();
-                        String timestamp = Utils.GetTimeStamp(System.currentTimeMillis());
+                            String statResponseId = UUID.randomUUID().toString();
+                            String timestamp = Utils.GetTimeStamp(System.currentTimeMillis());
 
-                        for (ScanResult result : scanResults) {
-                            String wifiStats = String.format(Locale.getDefault(), "%s;%s;%s;%d;%d;%d\n",
-                                    timestamp,
-                                    statResponseId,
-                                    result.BSSID,
-                                    result.channelWidth,
-                                    result.frequency,
-                                    result.level);
+                            for (ScanResult result : scanResults) {
+                                String wifiStats = String.format(Locale.getDefault(), "%s;%s;%s;%d;%d;%d\n",
+                                        timestamp,
+                                        statResponseId,
+                                        result.BSSID,
+                                        result.channelWidth,
+                                        result.frequency,
+                                        result.level);
 
-                            Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), WIFI_STATS_FILE_NAME, wifiStats);
+                                Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), WIFI_STATS_FILE_NAME, wifiStats);
+                            }
+                        } catch (Exception ex) {
+                            ex.printStackTrace();
                         }
                     }).start();
                 }
@@ -264,24 +272,28 @@ public class ProfilingService extends Service {
         mWifiProfilingThreadHandler.post(new Runnable() {
             @Override
             public void run() {
-                final WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-                //noinspection deprecation
-                wifiManager.startScan();
+                try {
+                    final WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+                    //noinspection deprecation
+                    wifiManager.startScan();
 
-                final String timestamp = Utils.GetTimeStamp(System.currentTimeMillis());
-                final WifiInfo currentInfo = wifiManager.getConnectionInfo();
+                    final String timestamp = Utils.GetTimeStamp(System.currentTimeMillis());
+                    final WifiInfo currentInfo = wifiManager.getConnectionInfo();
 
-                final String connectionInfo = String.format(Locale.getDefault(), "%s;CONN;%s;%d;%d;%d;%d;%d;%s\n",
-                        timestamp,
-                        currentInfo.getBSSID(),
-                        currentInfo.getFrequency(),
-                        currentInfo.getIpAddress(),
-                        currentInfo.getLinkSpeed(),
-                        currentInfo.getNetworkId(),
-                        currentInfo.getRssi(),
-                        currentInfo.getSSID());
+                    final String connectionInfo = String.format(Locale.getDefault(), "%s;CONN;%s;%d;%d;%d;%d;%d;%s\n",
+                            timestamp,
+                            currentInfo.getBSSID(),
+                            currentInfo.getFrequency(),
+                            currentInfo.getIpAddress(),
+                            currentInfo.getLinkSpeed(),
+                            currentInfo.getNetworkId(),
+                            currentInfo.getRssi(),
+                            currentInfo.getSSID());
 
-                Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.WIFI_STATS_FILE_NAME, connectionInfo);
+                    Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.WIFI_STATS_FILE_NAME, connectionInfo);
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
 
                 mWifiProfilingThreadHandler.postDelayed(this, WIFI_STATS_UPDATE_FREQ);
             }
@@ -293,18 +305,21 @@ public class ProfilingService extends Service {
             public void onReceive(Context context, Intent intent) {
                 final String action = intent.getAction();
                 if (BluetoothDevice.ACTION_FOUND.equals(action)) {
-                    BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
                     new Thread(() -> {
-                        assert device != null;
-                        String bluetoothStats = String.format(Locale.getDefault(), "%s;%s;%d;%d;%d;%d\n",
-                                Utils.GetTimeStamp(System.currentTimeMillis()),
-                                device.getAddress(),
-                                device.getBluetoothClass().getMajorDeviceClass(),
-                                device.getBluetoothClass().getDeviceClass(),
-                                device.getBondState(),
-                                device.getType());
+                        try {
+                            BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+                            String bluetoothStats = String.format(Locale.getDefault(), "%s;%s;%d;%d;%d;%d\n",
+                                    Utils.GetTimeStamp(System.currentTimeMillis()),
+                                    device.getAddress(),
+                                    device.getBluetoothClass().getMajorDeviceClass(),
+                                    device.getBluetoothClass().getDeviceClass(),
+                                    device.getBondState(),
+                                    device.getType());
 
-                        Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), BLUETOOTH_STATS_FILE_NAME, bluetoothStats);
+                            Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), BLUETOOTH_STATS_FILE_NAME, bluetoothStats);
+                        } catch (Exception ex) {
+                            ex.printStackTrace();
+                        }
                     }).start();
                 }
             }
@@ -322,30 +337,34 @@ public class ProfilingService extends Service {
         mBluetoothProfilingThreadHandler.post(new Runnable() {
             @Override
             public void run() {
-                final BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+                try {
+                    final BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
 
-                if (bluetoothAdapter != null)
-                    if (!bluetoothAdapter.isDiscovering())
-                        BluetoothAdapter.getDefaultAdapter().startDiscovery();
+                    if (bluetoothAdapter != null)
+                        if (!bluetoothAdapter.isDiscovering())
+                            BluetoothAdapter.getDefaultAdapter().startDiscovery();
 
-                BluetoothLeScanner btScanner = BluetoothAdapter.getDefaultAdapter().getBluetoothLeScanner();
-                btScanner.startScan(new ScanCallback() {
-                    @Override
-                    public void onScanResult(int callbackType, android.bluetooth.le.ScanResult result) {
-                        super.onScanResult(callbackType, result);
+                    BluetoothLeScanner btScanner = BluetoothAdapter.getDefaultAdapter().getBluetoothLeScanner();
+                    btScanner.startScan(new ScanCallback() {
+                        @Override
+                        public void onScanResult(int callbackType, android.bluetooth.le.ScanResult result) {
+                            super.onScanResult(callbackType, result);
 
-                        String resultStr = String.format(Locale.getDefault(), "%s;LE;%d;%d;%d;%d;%b;%b\n",
-                                Utils.GetTimeStamp(System.currentTimeMillis()),
-                                result.getAdvertisingSid(),
-                                result.getDataStatus(),
-                                result.getRssi(),
-                                result.getTxPower(),
-                                result.isConnectable(),
-                                result.isLegacy());
+                            String resultStr = String.format(Locale.getDefault(), "%s;LE;%d;%d;%d;%d;%b;%b\n",
+                                    Utils.GetTimeStamp(System.currentTimeMillis()),
+                                    result.getAdvertisingSid(),
+                                    result.getDataStatus(),
+                                    result.getRssi(),
+                                    result.getTxPower(),
+                                    result.isConnectable(),
+                                    result.isLegacy());
 
-                        Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.BLUETOOTH_STATS_FILE_NAME, resultStr);
-                    }
-                });
+                            Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.BLUETOOTH_STATS_FILE_NAME, resultStr);
+                        }
+                    });
+                } catch(Exception ex) {
+                    ex.printStackTrace();
+                }
 
                 mBluetoothProfilingThreadHandler.postDelayed(this, BLUETOOTH_STATS_UPDATE_FREQ);
             }
@@ -362,7 +381,12 @@ public class ProfilingService extends Service {
         mApplicationProfilingThreadHandler.post(new Runnable() {
             @Override
             public void run() {
-                Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.APP_STATS_FILE_NAME, getStatisticsForWritingToFile());
+                try {
+                    Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.APP_STATS_FILE_NAME, getStatisticsForWritingToFile());
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+
                 mApplicationProfilingThreadHandler.postDelayed(this, APP_STATS_UPDATE_FREQ);
             }
 
@@ -406,8 +430,7 @@ public class ProfilingService extends Service {
                     }
 
                     return statistic.toString();
-                }
-                catch (Exception ex) {
+                } catch (Exception ex) {
                     ex.printStackTrace();
                     return "";
                 }
@@ -423,12 +446,16 @@ public class ProfilingService extends Service {
                 String intentAction = intent.getAction();
 
                 new Thread(() -> {
-                    String broadcastStats = String.format(Locale.getDefault(), "%s;%s;%s\n",
-                            Utils.GetTimeStamp(System.currentTimeMillis()),
-                            intentType,
-                            intentAction);
+                    try {
+                        String broadcastStats = String.format(Locale.getDefault(), "%s;%s;%s\n",
+                                Utils.GetTimeStamp(System.currentTimeMillis()),
+                                intentType,
+                                intentAction);
 
-                    Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), BROADCASTS_STATS_FILE_NAME, broadcastStats);
+                        Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), BROADCASTS_STATS_FILE_NAME, broadcastStats);
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                    }
                 }).start();
             }
         };

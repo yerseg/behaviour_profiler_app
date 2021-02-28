@@ -226,7 +226,7 @@ public class MainActivity extends FragmentActivity {
 
         if (tempDir.exists()) {
             File[] tempFiles = tempDir.listFiles();
-            if (tempFiles.length > 0) {
+            if (tempFiles != null) {
                 for (File tempFile : tempFiles) {
                     if (tempFile.exists()) {
                         if (!Utils.deleteFile(tempFile)) {
@@ -297,7 +297,7 @@ public class MainActivity extends FragmentActivity {
                 startActivity(chooser);
             }
         } catch (Exception ex) {
-            Toast.makeText(getApplicationContext(), "Sending failed! Try again!", Toast.LENGTH_LONG).show();
+            showLongToast("ERROR! Sending failed! Try again!");
             ex.printStackTrace();
         }
     }

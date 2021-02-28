@@ -134,8 +134,9 @@ public class Utils {
                     } catch (Exception ex) {
                         ex.printStackTrace();
                     } finally {
-                        assert origin != null;
-                        origin.close();
+                        if (origin != null) {
+                            origin.close();
+                        }
                     }
                 }
 
