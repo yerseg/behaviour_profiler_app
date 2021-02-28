@@ -68,7 +68,6 @@ public class ProfilingService extends Service {
     public static final String APP_STATS_FILE_NAME = "app.data";
     public static final String BLUETOOTH_STATS_FILE_NAME = "bt.data";
     public static final String LOCATION_STATS_FILE_NAME = "location.data";
-    public static final String SCREEN_STATE_STATS_FILE_NAME = "screen.data";
     public static final String WIFI_STATS_FILE_NAME = "wifi.data";
     public static final String BROADCASTS_STATS_FILE_NAME = "broadcasts.data";
 
@@ -76,7 +75,6 @@ public class ProfilingService extends Service {
             APP_STATS_FILE_NAME,
             BLUETOOTH_STATS_FILE_NAME,
             LOCATION_STATS_FILE_NAME,
-            SCREEN_STATE_STATS_FILE_NAME,
             WIFI_STATS_FILE_NAME,
             BROADCASTS_STATS_FILE_NAME
     };
@@ -94,7 +92,6 @@ public class ProfilingService extends Service {
     private Handler mBluetoothProfilingThreadHandler;
     private Handler mApplicationProfilingThreadHandler;
 
-    private BroadcastReceiver mScreenStatusBroadcastReceiver;
     private BroadcastReceiver mWifiScanReceiver;
     private BroadcastReceiver mBluetoothBroadcastReceiver;
     private BroadcastReceiver mAnyBroadcastReceiver;
@@ -118,14 +115,13 @@ public class ProfilingService extends Service {
         super.onStartCommand(intent, flags, startId);
         Log.d("Profiler [Service]", String.format(Locale.getDefault(), "\t%d\tonStartCommand()", Process.myTid()));
 
-        startScreenStateTracking();
         startLocationTracking();
         startWifiTracking();
         startBluetoothTracking();
         startApplicationsStatisticTracking();
         startAnyBroadcastsTracking();
 
-        PeriodicWorkRequest notifyWorkRequest = new PeriodicWorkRequest.Builder(ReminderNotificationPeriodicWorker.class, Duration.ofHours(2)).setInitialDelay(Duration.ofSeconds(30)).build();
+        PeriodicWorkRequest notifyWorkRequest = new PeriodicWorkRequest.Builder(ReminderNotificationPeriodicWorker.class, Duration.ofHours(2)).setInitialDelay(Duration.ofMinutes(5)).build();
         WorkManager.getInstance(getApplicationContext()).enqueueUniquePeriodicWork(PUSH_REMINDER_NOTIFICATION_WORK_TAG, ExistingPeriodicWorkPolicy.REPLACE, notifyWorkRequest);
 
         return START_STICKY;
@@ -140,7 +136,6 @@ public class ProfilingService extends Service {
         Log.d("Profiler [Service]", String.format(Locale.getDefault(), "\t%d\tonDestroy()", Process.myTid()));
         super.onDestroy();
 
-        stopScreenStateTracking();
         stopLocationTracking();
         stopWifiTracking();
         stopBluetoothTracking();
@@ -234,26 +229,23 @@ public class ProfilingService extends Service {
             @Override
             public void onReceive(Context c, Intent intent) {
                 if (intent.getBooleanExtra(WifiManager.EXTRA_RESULTS_UPDATED, false)) {
-                    new Thread(new Runnable() {
-                        @Override
-                        public void run() {
-                            final WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-                            List<ScanResult> scanResults = wifiManager.getScanResults();
+                    new Thread(() -> {
+                        final WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+                        List<ScanResult> scanResults = wifiManager.getScanResults();
 
-                            String statResponseId = UUID.randomUUID().toString();
-                            String timestamp = Utils.GetTimeStamp(System.currentTimeMillis());
+                        String statResponseId = UUID.randomUUID().toString();
+                        String timestamp = Utils.GetTimeStamp(System.currentTimeMillis());
 
-                            for (ScanResult result : scanResults) {
-                                String wifiStats = String.format(Locale.getDefault(), "%s;%s;%s;%d;%d;%d\n",
-                                        timestamp,
-                                        statResponseId,
-                                        result.BSSID,
-                                        result.channelWidth,
-                                        result.frequency,
-                                        result.level);
+                        for (ScanResult result : scanResults) {
+                            String wifiStats = String.format(Locale.getDefault(), "%s;%s;%s;%d;%d;%d\n",
+                                    timestamp,
+                                    statResponseId,
+                                    result.BSSID,
+                                    result.channelWidth,
+                                    result.frequency,
+                                    result.level);
 
-                                Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), WIFI_STATS_FILE_NAME, wifiStats);
-                            }
+                            Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), WIFI_STATS_FILE_NAME, wifiStats);
                         }
                     }).start();
                 }
@@ -273,6 +265,7 @@ public class ProfilingService extends Service {
             @Override
             public void run() {
                 final WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+                //noinspection deprecation
                 wifiManager.startScan();
 
                 final String timestamp = Utils.GetTimeStamp(System.currentTimeMillis());
@@ -302,6 +295,7 @@ public class ProfilingService extends Service {
                 if (BluetoothDevice.ACTION_FOUND.equals(action)) {
                     BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
                     new Thread(() -> {
+                        assert device != null;
                         String bluetoothStats = String.format(Locale.getDefault(), "%s;%s;%d;%d;%d;%d\n",
                                 Utils.GetTimeStamp(System.currentTimeMillis()),
                                 device.getAddress(),
@@ -328,7 +322,6 @@ public class ProfilingService extends Service {
         mBluetoothProfilingThreadHandler.post(new Runnable() {
             @Override
             public void run() {
-                String statResponseId = UUID.randomUUID().toString();
                 final BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
 
                 if (bluetoothAdapter != null)
@@ -441,36 +434,6 @@ public class ProfilingService extends Service {
         };
 
         registerAnyBroadcastReceiver();
-    }
-
-    private void startScreenStateTracking() {
-        mScreenStatusBroadcastReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                final String finalIntentActionName = intent.getAction();
-                new Thread(() -> {
-                    final String screenStats = String.format(Locale.getDefault(), "%s;%s\n", Utils.GetTimeStamp(System.currentTimeMillis()), finalIntentActionName);
-                    Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), SCREEN_STATE_STATS_FILE_NAME, screenStats);
-                }).start();
-            }
-        };
-
-        IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction(Intent.ACTION_USER_PRESENT);
-        intentFilter.addAction(Intent.ACTION_SHUTDOWN);
-        intentFilter.addAction(Intent.ACTION_DREAMING_STARTED);
-        intentFilter.addAction(Intent.ACTION_DREAMING_STOPPED);
-        intentFilter.addAction(Intent.ACTION_REBOOT);
-        intentFilter.addAction(Intent.ACTION_SCREEN_OFF);
-        intentFilter.addAction(Intent.ACTION_SCREEN_ON);
-        intentFilter.addAction(Intent.ACTION_USER_UNLOCKED);
-
-        registerReceiver(mScreenStatusBroadcastReceiver, intentFilter);
-    }
-
-    private void stopScreenStateTracking() {
-        if (mScreenStatusBroadcastReceiver != null)
-            unregisterReceiver(mScreenStatusBroadcastReceiver);
     }
 
     private void stopLocationTracking() {
