@@ -175,6 +175,7 @@ public class ProfilingService extends Service {
 
         NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID);
         Notification notification = notificationBuilder
+                .setSmallIcon(R.drawable.ic_launcher_2_foreground)
                 .setOngoing(true)
                 .setContentTitle("Profiler")
                 .setContentText("Profiling service is running and collecting statistics")
@@ -186,7 +187,7 @@ public class ProfilingService extends Service {
     }
 
     private void startLocationTracking() {
-        LocationRequest locationRequest = new LocationRequest();
+        LocationRequest locationRequest = LocationRequest.create();
         locationRequest.setInterval(LOCATION_STATS_UPDATE_FREQ);
         locationRequest.setFastestInterval(LOCATION_STATS_UPDATE_FREQ / 10);
         locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
@@ -303,13 +304,19 @@ public class ProfilingService extends Service {
     private void startBluetoothTracking() {
         mBluetoothBroadcastReceiver = new BroadcastReceiver() {
             public void onReceive(Context context, Intent intent) {
-                final String action = intent.getAction();
-                if (BluetoothDevice.ACTION_FOUND.equals(action)) {
-                    new Thread(() -> {
+                new Thread(() -> {
+                    try {
+                        BluetoothDevice device = null;
                         try {
-                            BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-                            String bluetoothStats = String.format(Locale.getDefault(), "%s;%s;%d;%d;%d;%d\n",
+                            device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+                        } catch (Exception ex) {
+                            ex.printStackTrace();
+                        }
+
+                        if (device != null) {
+                            String bluetoothStats = String.format(Locale.getDefault(), "%s;%s;%s;%d;%d;%d;%d\n",
                                     Utils.GetTimeStamp(System.currentTimeMillis()),
+                                    intent.getAction(),
                                     device.getAddress(),
                                     device.getBluetoothClass().getMajorDeviceClass(),
                                     device.getBluetoothClass().getDeviceClass(),
@@ -317,16 +324,26 @@ public class ProfilingService extends Service {
                                     device.getType());
 
                             Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), BLUETOOTH_STATS_FILE_NAME, bluetoothStats);
-                        } catch (Exception ex) {
-                            ex.printStackTrace();
                         }
-                    }).start();
-                }
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                    }
+                }).start();
             }
         };
 
-        IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
-        registerReceiver(mBluetoothBroadcastReceiver, filter);
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(BluetoothDevice.ACTION_ACL_CONNECTED);
+        intentFilter.addAction(BluetoothDevice.ACTION_ACL_DISCONNECT_REQUESTED);
+        intentFilter.addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED);
+        intentFilter.addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED);
+        intentFilter.addAction(BluetoothDevice.ACTION_CLASS_CHANGED);
+        intentFilter.addAction(BluetoothDevice.ACTION_FOUND);
+        intentFilter.addAction(BluetoothDevice.ACTION_NAME_CHANGED);
+        intentFilter.addAction(BluetoothDevice.ACTION_PAIRING_REQUEST);
+        intentFilter.addAction(BluetoothDevice.ACTION_UUID);
+
+        registerReceiver(mBluetoothBroadcastReceiver, intentFilter);
 
         mBluetoothProfilingThread = new HandlerThread("BluetoothProfilingThread", Process.THREAD_PRIORITY_FOREGROUND);
         mBluetoothProfilingThread.start();
@@ -340,9 +357,10 @@ public class ProfilingService extends Service {
                 try {
                     final BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
 
-                    if (bluetoothAdapter != null)
+                    if (bluetoothAdapter != null) {
                         if (!bluetoothAdapter.isDiscovering())
-                            BluetoothAdapter.getDefaultAdapter().startDiscovery();
+                            bluetoothAdapter.startDiscovery();
+                    }
 
                     BluetoothLeScanner btScanner = BluetoothAdapter.getDefaultAdapter().getBluetoothLeScanner();
                     btScanner.startScan(new ScanCallback() {
@@ -362,7 +380,7 @@ public class ProfilingService extends Service {
                             Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.BLUETOOTH_STATS_FILE_NAME, resultStr);
                         }
                     });
-                } catch(Exception ex) {
+                } catch (Exception ex) {
                     ex.printStackTrace();
                 }
 

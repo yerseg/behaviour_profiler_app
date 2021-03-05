@@ -6,6 +6,7 @@ import android.app.NotificationManager;
 import android.bluetooth.BluetoothAdapter;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.location.LocationManager;
@@ -39,6 +40,14 @@ public class MainActivity extends FragmentActivity {
 
     private final static int PERMISSIONS_REQUEST_ID = 1001;
 
+    public static final String ACTION_LOCATION_SCANNING_SETTINGS = "android.settings.LOCATION_SCANNING_SETTINGS";
+
+    private final static String LOCATION_SOURCE_SETTINGS_SHOWN = "com.yerseg.profiler.LOCATION_SOURCE_SETTINGS_SHOWN";
+    private final static String IGNORE_BATTERY_OPTIMIZATION_SETTINGS_SHOWN = "com.yerseg.profiler.IGNORE_BATTERY_OPTIMIZATION_SETTINGS_SHOWN";
+    private final static String APPLICATION_DETAILS_SETTINGS_SHOWN = "com.yerseg.profiler.APPLICATION_DETAILS_SETTINGS_SHOWN";
+    private final static String LOCATION_SCANNING_SETTINGS_SHOWN = "com.yerseg.profiler.LOCATION_SCANNING_SETTINGS_SHOWN";
+    private final static String REQUEST_IGNORE_BATTERY_OPTIMIZATIONS_SHOWN = "com.yerseg.profiler.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS_SHOWN";
+
     Intent mProfilingServiceIntent;
     boolean mIsPermissionsGranted = false;
 
@@ -64,6 +73,43 @@ public class MainActivity extends FragmentActivity {
                 Intent intent = new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS);
                 showLongToast("Grant action usage permission please!");
                 startActivityForResult(intent, 1);
+                return;
+            }
+
+            // Common location settings
+            if (shouldShowSettingsActivity(LOCATION_SOURCE_SETTINGS_SHOWN)) {
+                Intent intent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
+                showLongToast("Turn on all location services please!");
+                startActivityForResult(intent, 1);
+                markSettingsActivityShown(LOCATION_SOURCE_SETTINGS_SHOWN);
+                return;
+            }
+
+            // App settings
+            if (shouldShowSettingsActivity(APPLICATION_DETAILS_SETTINGS_SHOWN)) {
+                Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                intent.setData(Uri.parse("package:" + getApplicationContext().getPackageName()));
+                showLongToast("Turn off battery optimizations for app please!");
+                startActivityForResult(intent, 1);
+                markSettingsActivityShown(APPLICATION_DETAILS_SETTINGS_SHOWN);
+                return;
+            }
+
+            // Two switch
+            if (shouldShowSettingsActivity(LOCATION_SCANNING_SETTINGS_SHOWN)) {
+                Intent intent = new Intent(ACTION_LOCATION_SCANNING_SETTINGS);
+                showLongToast("Turn on all switches please!");
+                startActivityForResult(intent, 1);
+                markSettingsActivityShown(LOCATION_SCANNING_SETTINGS_SHOWN);
+                return;
+            }
+
+            if (shouldShowSettingsActivity(REQUEST_IGNORE_BATTERY_OPTIMIZATIONS_SHOWN)) {
+                Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                intent.setData(Uri.parse("package:" + getApplicationContext().getPackageName()));
+                showLongToast("Allow the app to ignore battery optimizations please!");
+                startActivityForResult(intent, 1);
+                markSettingsActivityShown(REQUEST_IGNORE_BATTERY_OPTIMIZATIONS_SHOWN);
                 return;
             }
 
@@ -175,7 +221,8 @@ public class MainActivity extends FragmentActivity {
                 Manifest.permission.BLUETOOTH_ADMIN,
                 Manifest.permission.CHANGE_WIFI_STATE,
                 Manifest.permission.FOREGROUND_SERVICE,
-                Manifest.permission.PACKAGE_USAGE_STATS
+                Manifest.permission.PACKAGE_USAGE_STATS,
+                Manifest.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
         }, PERMISSIONS_REQUEST_ID);
     }
 
@@ -204,6 +251,16 @@ public class MainActivity extends FragmentActivity {
         }
 
         return super.onOptionsItemSelected(item);
+    }
+
+    private boolean shouldShowSettingsActivity(String preferencesKeyName) {
+        SharedPreferences prefs = getSharedPreferences(getApplicationContext().getPackageName(), Context.MODE_PRIVATE);
+        return !prefs.getBoolean(preferencesKeyName, false);
+    }
+
+    private void markSettingsActivityShown(String preferencesKeyName) {
+        SharedPreferences prefs = getSharedPreferences(getApplicationContext().getPackageName(), Context.MODE_PRIVATE);
+        prefs.edit().putBoolean(preferencesKeyName, true).apply();
     }
 
     private void showLongToast(String text) {

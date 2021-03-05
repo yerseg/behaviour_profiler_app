@@ -38,7 +38,7 @@ public class ReminderNotificationPeriodicWorker extends Worker {
         Notification notification = notificationBuilder
                 .setContentTitle("Profiler")
                 .setContentText("Please, send statistics!")
-                .setSmallIcon(R.drawable.ic_launcher_background)
+                .setSmallIcon(R.drawable.ic_launcher_2_foreground)
                 .setPriority(NotificationManager.IMPORTANCE_MAX)
                 .setCategory(Notification.CATEGORY_REMINDER)
                 .setContentIntent(resultPendingIntent)
