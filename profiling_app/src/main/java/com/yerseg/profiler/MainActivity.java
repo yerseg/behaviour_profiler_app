@@ -76,39 +76,40 @@ public class MainActivity extends FragmentActivity {
                 return;
             }
 
+            // Common location settings
             if (shouldShowSettingsActivity(LOCATION_SOURCE_SETTINGS_SHOWN)) {
                 Intent intent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
-                showLongToast("Grant action usage permission please!");
+                showLongToast("Turn on all location services please!");
                 startActivityForResult(intent, 1);
+                markSettingsActivityShown(LOCATION_SOURCE_SETTINGS_SHOWN);
                 return;
             }
 
-            if (shouldShowSettingsActivity(IGNORE_BATTERY_OPTIMIZATION_SETTINGS_SHOWN)) {
-                Intent intent = new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
-                showLongToast("Grant action usage permission please!");
-                startActivityForResult(intent, 1);
-                return;
-            }
-
+            // App settings
             if (shouldShowSettingsActivity(APPLICATION_DETAILS_SETTINGS_SHOWN)) {
                 Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                showLongToast("Grant action usage permission please!");
+                intent.setData(Uri.parse("package:" + getApplicationContext().getPackageName()));
+                showLongToast("Turn off battery optimizations for app please!");
                 startActivityForResult(intent, 1);
+                markSettingsActivityShown(APPLICATION_DETAILS_SETTINGS_SHOWN);
                 return;
             }
 
+            // Two switch
             if (shouldShowSettingsActivity(LOCATION_SCANNING_SETTINGS_SHOWN)) {
                 Intent intent = new Intent(ACTION_LOCATION_SCANNING_SETTINGS);
-                showLongToast("Grant action usage permission please!");
+                showLongToast("Turn on all switches please!");
                 startActivityForResult(intent, 1);
+                markSettingsActivityShown(LOCATION_SCANNING_SETTINGS_SHOWN);
                 return;
             }
 
             if (shouldShowSettingsActivity(REQUEST_IGNORE_BATTERY_OPTIMIZATIONS_SHOWN)) {
                 Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
                 intent.setData(Uri.parse("package:" + getApplicationContext().getPackageName()));
-                showLongToast("Grant action usage permission please!");
+                showLongToast("Allow the app to ignore battery optimizations please!");
                 startActivityForResult(intent, 1);
+                markSettingsActivityShown(REQUEST_IGNORE_BATTERY_OPTIMIZATIONS_SHOWN);
                 return;
             }
 
@@ -254,7 +255,7 @@ public class MainActivity extends FragmentActivity {
 
     private boolean shouldShowSettingsActivity(String preferencesKeyName) {
         SharedPreferences prefs = getSharedPreferences(getApplicationContext().getPackageName(), Context.MODE_PRIVATE);
-        return prefs.getBoolean(preferencesKeyName, false);
+        return !prefs.getBoolean(preferencesKeyName, false);
     }
 
     private void markSettingsActivityShown(String preferencesKeyName) {
