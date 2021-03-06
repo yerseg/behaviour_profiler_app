@@ -13,6 +13,7 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
 import android.content.BroadcastReceiver;
+import android.content.ClipData;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -46,6 +47,7 @@ import com.google.android.gms.location.LocationServices;
 import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 
 public class ProfilingService extends Service {
@@ -59,7 +61,6 @@ public class ProfilingService extends Service {
 
     public static final int WIFI_STATS_UPDATE_FREQ = 5000;
     public static final int BLUETOOTH_STATS_UPDATE_FREQ = 5000;
-    public static final int APP_STATS_UPDATE_FREQ = 5000;
     public static final int LOCATION_STATS_UPDATE_FREQ = 5000;
 
     public static final String PROFILING_STATS_DIRECTORY_NAME = "ProfilingData";
@@ -87,12 +88,10 @@ public class ProfilingService extends Service {
     private HandlerThread mLocationProfilingThread;
     private HandlerThread mWifiProfilingThread;
     private HandlerThread mBluetoothProfilingThread;
-    private HandlerThread mApplicationProfilingThread;
 
     private Handler mLocationProfilingThreadHandler;
     private Handler mWifiProfilingThreadHandler;
     private Handler mBluetoothProfilingThreadHandler;
-    private Handler mApplicationProfilingThreadHandler;
 
     private BroadcastReceiver mWifiScanReceiver;
     private BroadcastReceiver mBluetoothBroadcastReceiver;
@@ -121,7 +120,6 @@ public class ProfilingService extends Service {
         startLocationTracking();
         startWifiTracking();
         startBluetoothTracking();
-        startApplicationsStatisticTracking();
         startAnyBroadcastsTracking();
 
         PeriodicWorkRequest notifyWorkRequest = new PeriodicWorkRequest.Builder(ReminderNotificationPeriodicWorker.class, Duration.ofHours(2)).setInitialDelay(Duration.ofMinutes(5)).build();
@@ -142,7 +140,6 @@ public class ProfilingService extends Service {
         stopLocationTracking();
         stopWifiTracking();
         stopBluetoothTracking();
-        stopApplicationsStatisticTracking();
         stopAnyBroadcastsTracking();
 
         WorkManager.getInstance(getApplicationContext()).cancelUniqueWork(PUSH_REMINDER_NOTIFICATION_WORK_TAG);
@@ -409,86 +406,19 @@ public class ProfilingService extends Service {
         });
     }
 
-    private void startApplicationsStatisticTracking() {
-        mApplicationProfilingThread = new HandlerThread("AppStatThread", Process.THREAD_PRIORITY_FOREGROUND);
-        mApplicationProfilingThread.start();
-
-        Looper looper = mApplicationProfilingThread.getLooper();
-        mApplicationProfilingThreadHandler = new Handler(looper);
-
-        mApplicationProfilingThreadHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.APP_STATS_FILE_NAME, getStatisticsForWritingToFile());
-                } catch (Exception ex) {
-                    ex.printStackTrace();
-                }
-
-                mApplicationProfilingThreadHandler.postDelayed(this, APP_STATS_UPDATE_FREQ);
-            }
-
-            private String getStatisticsForWritingToFile() {
-                try {
-                    long beginTime = java.lang.System.currentTimeMillis() - SystemClock.elapsedRealtime();
-                    long endTime = java.lang.System.currentTimeMillis();
-
-                    UsageStatsManager usageStatsManager = (UsageStatsManager) getApplicationContext().getSystemService(Context.USAGE_STATS_SERVICE);
-
-                    String statResponseId = UUID.randomUUID().toString();
-                    String timestamp = Utils.GetTimeStamp(endTime);
-
-                    StringBuilder statistic = new StringBuilder();
-
-                    List<UsageStats> usageStatsList = usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, beginTime, endTime);
-
-                    for (UsageStats usageStats : usageStatsList) {
-                        statistic.append(String.format(Locale.getDefault(), "%s;%s;UsageStats;%s;%d;%d;%d;%d\n",
-                                timestamp,
-                                statResponseId,
-                                usageStats.getPackageName(),
-                                usageStats.getFirstTimeStamp(),
-                                usageStats.getLastTimeStamp(),
-                                usageStats.getLastTimeUsed(),
-                                usageStats.getTotalTimeInForeground()));
-                    }
-
-                    List<EventStats> eventStatsList = usageStatsManager.queryEventStats(UsageStatsManager.INTERVAL_DAILY, beginTime, endTime);
-
-                    for (EventStats eventStat : eventStatsList) {
-                        statistic.append(String.format(Locale.getDefault(), "%s;%s;EventStats;%d;%d;%d;%d;%d;%d\n",
-                                timestamp,
-                                statResponseId,
-                                eventStat.getCount(),
-                                eventStat.getEventType(),
-                                eventStat.getFirstTimeStamp(),
-                                eventStat.getLastTimeStamp(),
-                                eventStat.getLastEventTime(),
-                                eventStat.getTotalTime()));
-                    }
-
-                    return statistic.toString();
-                } catch (Exception ex) {
-                    ex.printStackTrace();
-                    return "";
-                }
-            }
-        });
-    }
-
     private void startAnyBroadcastsTracking() {
         mAnyBroadcastReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
-                String intentType = intent.toString();
-                String intentAction = intent.getAction();
-
                 new Thread(() -> {
                     try {
-                        String broadcastStats = String.format(Locale.getDefault(), "%s;%s;%s\n",
+                        String broadcastStats = String.format(Locale.getDefault(), "%s;%s;%s;%s;%s;%s\n",
                                 Utils.GetTimeStamp(System.currentTimeMillis()),
-                                intentType,
-                                intentAction);
+                                intent.getAction(),
+                                intent.getDataString(),
+                                intent.getPackage(),
+                                intent.getScheme(),
+                                intent.getType());
 
                         Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), BROADCASTS_STATS_FILE_NAME, broadcastStats);
                     } catch (Exception ex) {
@@ -529,11 +459,6 @@ public class ProfilingService extends Service {
 
         mBluetoothProfilingThreadHandler.removeCallbacksAndMessages(null);
         mBluetoothProfilingThread.quit();
-    }
-
-    private void stopApplicationsStatisticTracking() {
-        mApplicationProfilingThreadHandler.removeCallbacksAndMessages(null);
-        mApplicationProfilingThread.quit();
     }
 
     private void stopAnyBroadcastsTracking() {

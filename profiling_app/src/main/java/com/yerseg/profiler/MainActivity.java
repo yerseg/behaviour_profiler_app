@@ -85,6 +85,15 @@ public class MainActivity extends FragmentActivity {
                 return;
             }
 
+            if (shouldShowSettingsActivity(REQUEST_IGNORE_BATTERY_OPTIMIZATIONS_SHOWN)) {
+                Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                intent.setData(Uri.parse("package:" + getApplicationContext().getPackageName()));
+                showLongToast("Allow the app to ignore battery optimizations please!");
+                startActivityForResult(intent, 1);
+                markSettingsActivityShown(REQUEST_IGNORE_BATTERY_OPTIMIZATIONS_SHOWN);
+                return;
+            }
+
             // App settings
             if (shouldShowSettingsActivity(APPLICATION_DETAILS_SETTINGS_SHOWN)) {
                 Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
@@ -101,15 +110,6 @@ public class MainActivity extends FragmentActivity {
                 showLongToast("Turn on all switches please!");
                 startActivityForResult(intent, 1);
                 markSettingsActivityShown(LOCATION_SCANNING_SETTINGS_SHOWN);
-                return;
-            }
-
-            if (shouldShowSettingsActivity(REQUEST_IGNORE_BATTERY_OPTIMIZATIONS_SHOWN)) {
-                Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-                intent.setData(Uri.parse("package:" + getApplicationContext().getPackageName()));
-                showLongToast("Allow the app to ignore battery optimizations please!");
-                startActivityForResult(intent, 1);
-                markSettingsActivityShown(REQUEST_IGNORE_BATTERY_OPTIMIZATIONS_SHOWN);
                 return;
             }
 
@@ -229,28 +229,6 @@ public class MainActivity extends FragmentActivity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         mIsPermissionsGranted = requestCode == PERMISSIONS_REQUEST_ID && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
-    }
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.menu_main, menu);
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        int id = item.getItemId();
-
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
-            return true;
-        }
-
-        return super.onOptionsItemSelected(item);
     }
 
     private boolean shouldShowSettingsActivity(String preferencesKeyName) {
