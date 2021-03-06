@@ -82,6 +82,8 @@ public class ProfilingService extends Service {
     public static boolean isRunning = false;
     public static boolean isStopping = true;
 
+    public static boolean isBtLeProfilingStopped = false;
+
     private HandlerThread mLocationProfilingThread;
     private HandlerThread mWifiProfilingThread;
     private HandlerThread mBluetoothProfilingThread;
@@ -97,6 +99,7 @@ public class ProfilingService extends Service {
     private BroadcastReceiver mAnyBroadcastReceiver;
 
     private LocationCallback mLocationCallback;
+    private ScanCallback mBtLeScanCallback;
 
     @Override
     public void onCreate() {
@@ -345,11 +348,41 @@ public class ProfilingService extends Service {
 
         registerReceiver(mBluetoothBroadcastReceiver, intentFilter);
 
+        synchronized (this) {
+            isBtLeProfilingStopped = false;
+        }
+
         mBluetoothProfilingThread = new HandlerThread("BluetoothProfilingThread", Process.THREAD_PRIORITY_FOREGROUND);
         mBluetoothProfilingThread.start();
 
         Looper looper = mBluetoothProfilingThread.getLooper();
         mBluetoothProfilingThreadHandler = new Handler(looper);
+
+        mBtLeScanCallback = new ScanCallback() {
+            @Override
+            public void onScanResult(int callbackType, android.bluetooth.le.ScanResult result) {
+                boolean isKilled = false;
+                synchronized (this) {
+                    isKilled = isBtLeProfilingStopped;
+                }
+
+                if (isKilled)
+                    return;
+
+                super.onScanResult(callbackType, result);
+
+                String resultStr = String.format(Locale.getDefault(), "%s;LE;%d;%d;%d;%d;%b;%b\n",
+                        Utils.GetTimeStamp(System.currentTimeMillis()),
+                        result.getAdvertisingSid(),
+                        result.getDataStatus(),
+                        result.getRssi(),
+                        result.getTxPower(),
+                        result.isConnectable(),
+                        result.isLegacy());
+
+                Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.BLUETOOTH_STATS_FILE_NAME, resultStr);
+            }
+        };
 
         mBluetoothProfilingThreadHandler.post(new Runnable() {
             @Override
@@ -362,29 +395,16 @@ public class ProfilingService extends Service {
                             bluetoothAdapter.startDiscovery();
                     }
 
-                    BluetoothLeScanner btScanner = BluetoothAdapter.getDefaultAdapter().getBluetoothLeScanner();
-                    btScanner.startScan(new ScanCallback() {
-                        @Override
-                        public void onScanResult(int callbackType, android.bluetooth.le.ScanResult result) {
-                            super.onScanResult(callbackType, result);
+                    final BluetoothLeScanner btScanner = BluetoothAdapter.getDefaultAdapter().getBluetoothLeScanner();
+                    if (btScanner != null) {
+                        btScanner.startScan(mBtLeScanCallback);
+                    }
 
-                            String resultStr = String.format(Locale.getDefault(), "%s;LE;%d;%d;%d;%d;%b;%b\n",
-                                    Utils.GetTimeStamp(System.currentTimeMillis()),
-                                    result.getAdvertisingSid(),
-                                    result.getDataStatus(),
-                                    result.getRssi(),
-                                    result.getTxPower(),
-                                    result.isConnectable(),
-                                    result.isLegacy());
+                    mBluetoothProfilingThreadHandler.postDelayed(this, BLUETOOTH_STATS_UPDATE_FREQ);
 
-                            Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.BLUETOOTH_STATS_FILE_NAME, resultStr);
-                        }
-                    });
                 } catch (Exception ex) {
                     ex.printStackTrace();
                 }
-
-                mBluetoothProfilingThreadHandler.postDelayed(this, BLUETOOTH_STATS_UPDATE_FREQ);
             }
         });
     }
@@ -488,7 +508,7 @@ public class ProfilingService extends Service {
         }
 
         mLocationProfilingThreadHandler.removeCallbacksAndMessages(null);
-        mLocationProfilingThread.quitSafely();
+        mLocationProfilingThread.quit();
     }
 
     private void stopWifiTracking() {
@@ -496,20 +516,24 @@ public class ProfilingService extends Service {
             unregisterReceiver(mWifiScanReceiver);
 
         mWifiProfilingThreadHandler.removeCallbacksAndMessages(null);
-        mWifiProfilingThread.quitSafely();
+        mWifiProfilingThread.quit();
     }
 
     private void stopBluetoothTracking() {
+        synchronized (this) {
+            isBtLeProfilingStopped = true;
+        }
+
         if (mBluetoothBroadcastReceiver != null)
             unregisterReceiver(mBluetoothBroadcastReceiver);
 
         mBluetoothProfilingThreadHandler.removeCallbacksAndMessages(null);
-        mBluetoothProfilingThread.quitSafely();
+        mBluetoothProfilingThread.quit();
     }
 
     private void stopApplicationsStatisticTracking() {
         mApplicationProfilingThreadHandler.removeCallbacksAndMessages(null);
-        mApplicationProfilingThread.quitSafely();
+        mApplicationProfilingThread.quit();
     }
 
     private void stopAnyBroadcastsTracking() {
