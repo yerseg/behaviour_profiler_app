@@ -1,15 +1,6 @@
 <resources>
     <string name="app_name">Profiler</string>
-    <string name="action_settings">Settings</string>
-    <!-- Strings used for fragments for navigation -->
-    <string name="first_fragment_label">First Fragment</string>
-    <string name="second_fragment_label">Second Fragment</string>
-    <string name="next">START</string>
-    <string name="previous">Previous</string>
-
     <string name="Instruction">You can start and stop profiling by this buttons.</string>
-    <string name="hello_second_fragment">Hello second fragment. Arg: %1$s</string>
-    <string name="todo" />
     <string name="buttonText">START</string>
     <string name="stopButtonText">STOP</string>
 </resources>

@@ -85,7 +85,6 @@
         android:id="@+id/SendDataByEmailButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:contentDescription="@string/todo"
         app:backgroundTint="@color/safe_green"
         app:fabSize="auto"
         app:layout_constraintBottom_toBottomOf="parent"
