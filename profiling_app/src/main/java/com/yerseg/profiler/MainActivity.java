@@ -69,13 +69,6 @@ public class MainActivity extends FragmentActivity {
                 return;
             }
 
-            if (!isUsageStatsPermissionsGranted()) {
-                Intent intent = new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS);
-                showLongToast("Grant action usage permission please!");
-                startActivityForResult(intent, 1);
-                return;
-            }
-
             // Common location settings
             if (shouldShowSettingsActivity(LOCATION_SOURCE_SETTINGS_SHOWN)) {
                 Intent intent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
