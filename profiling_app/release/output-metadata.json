@@ -11,7 +11,7 @@
       "type": "SINGLE",
       "filters": [],
       "versionCode": 1,
-      "versionName": "1.1.0beta",
+      "versionName": "1.1.2beta",
       "outputFile": "profiling_app-release.apk"
     }
   ]
