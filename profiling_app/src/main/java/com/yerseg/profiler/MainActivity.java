@@ -85,6 +85,15 @@ public class MainActivity extends FragmentActivity {
                 return;
             }
 
+            if (shouldShowSettingsActivity(REQUEST_IGNORE_BATTERY_OPTIMIZATIONS_SHOWN)) {
+                Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                intent.setData(Uri.parse("package:" + getApplicationContext().getPackageName()));
+                showLongToast("Allow the app to ignore battery optimizations please!");
+                startActivityForResult(intent, 1);
+                markSettingsActivityShown(REQUEST_IGNORE_BATTERY_OPTIMIZATIONS_SHOWN);
+                return;
+            }
+
             // App settings
             if (shouldShowSettingsActivity(APPLICATION_DETAILS_SETTINGS_SHOWN)) {
                 Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
@@ -101,15 +110,6 @@ public class MainActivity extends FragmentActivity {
                 showLongToast("Turn on all switches please!");
                 startActivityForResult(intent, 1);
                 markSettingsActivityShown(LOCATION_SCANNING_SETTINGS_SHOWN);
-                return;
-            }
-
-            if (shouldShowSettingsActivity(REQUEST_IGNORE_BATTERY_OPTIMIZATIONS_SHOWN)) {
-                Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-                intent.setData(Uri.parse("package:" + getApplicationContext().getPackageName()));
-                showLongToast("Allow the app to ignore battery optimizations please!");
-                startActivityForResult(intent, 1);
-                markSettingsActivityShown(REQUEST_IGNORE_BATTERY_OPTIMIZATIONS_SHOWN);
                 return;
             }
 
