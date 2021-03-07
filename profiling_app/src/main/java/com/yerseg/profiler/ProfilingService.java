@@ -122,12 +122,13 @@ public class ProfilingService extends Service {
 
     @Override
     public void onDestroy() {
+        super.onDestroy();
+
         synchronized (this) {
             isStopping = true;
         }
 
         Log.d("Profiler [Service]", String.format(Locale.getDefault(), "\t%d\tonDestroy()", Process.myTid()));
-        super.onDestroy();
 
         stopLocationTracking();
         stopWifiTracking();
