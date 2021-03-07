@@ -16,8 +16,6 @@ import android.os.Bundle;
 import android.os.Process;
 import android.provider.Settings;
 import android.util.Log;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ProgressBar;
@@ -40,10 +38,9 @@ public class MainActivity extends FragmentActivity {
 
     private final static int PERMISSIONS_REQUEST_ID = 1001;
 
-    public static final String ACTION_LOCATION_SCANNING_SETTINGS = "android.settings.LOCATION_SCANNING_SETTINGS";
+    public final static String ACTION_LOCATION_SCANNING_SETTINGS = "android.settings.LOCATION_SCANNING_SETTINGS";
 
     private final static String LOCATION_SOURCE_SETTINGS_SHOWN = "com.yerseg.profiler.LOCATION_SOURCE_SETTINGS_SHOWN";
-    private final static String IGNORE_BATTERY_OPTIMIZATION_SETTINGS_SHOWN = "com.yerseg.profiler.IGNORE_BATTERY_OPTIMIZATION_SETTINGS_SHOWN";
     private final static String APPLICATION_DETAILS_SETTINGS_SHOWN = "com.yerseg.profiler.APPLICATION_DETAILS_SETTINGS_SHOWN";
     private final static String LOCATION_SCANNING_SETTINGS_SHOWN = "com.yerseg.profiler.LOCATION_SCANNING_SETTINGS_SHOWN";
     private final static String REQUEST_IGNORE_BATTERY_OPTIMIZATIONS_SHOWN = "com.yerseg.profiler.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS_SHOWN";
@@ -189,20 +186,6 @@ public class MainActivity extends FragmentActivity {
             isRunning = ProfilingService.isRunning;
         }
         return isRunning;
-    }
-
-    private boolean isUsageStatsPermissionsGranted() {
-        boolean granted = false;
-        AppOpsManager appOps = (AppOpsManager) getSystemService(APP_OPS_SERVICE);
-        int mode = appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), getPackageName());
-
-        if (mode == AppOpsManager.MODE_DEFAULT) {
-            granted = (checkCallingOrSelfPermission(android.Manifest.permission.PACKAGE_USAGE_STATS) == PackageManager.PERMISSION_GRANTED);
-        } else {
-            granted = (mode == AppOpsManager.MODE_ALLOWED);
-        }
-
-        return granted;
     }
 
     void requestPermissions() {
