@@ -60,14 +60,12 @@ public class ProfilingService extends Service {
     public static final String PROFILING_STATS_DIRECTORY_NAME = "ProfilingData";
     public static final String PROFILING_STATS_TEMP_DIRECTORY_NAME = "ProfilingDataTemp";
 
-    public static final String APP_STATS_FILE_NAME = "app.data";
     public static final String BLUETOOTH_STATS_FILE_NAME = "bt.data";
     public static final String LOCATION_STATS_FILE_NAME = "location.data";
     public static final String WIFI_STATS_FILE_NAME = "wifi.data";
     public static final String BROADCASTS_STATS_FILE_NAME = "broadcasts.data";
 
     public static final String[] STAT_FILE_NAMES = {
-            APP_STATS_FILE_NAME,
             BLUETOOTH_STATS_FILE_NAME,
             LOCATION_STATS_FILE_NAME,
             WIFI_STATS_FILE_NAME,
