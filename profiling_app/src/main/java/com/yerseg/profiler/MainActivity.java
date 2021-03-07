@@ -1,7 +1,7 @@
 package com.yerseg.profiler;
 
 import android.Manifest;
-import android.app.AppOpsManager;
+import android.annotation.SuppressLint;
 import android.app.NotificationManager;
 import android.bluetooth.BluetoothAdapter;
 import android.content.Context;
@@ -16,8 +16,6 @@ import android.os.Bundle;
 import android.os.Process;
 import android.provider.Settings;
 import android.util.Log;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ProgressBar;
@@ -25,6 +23,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.Toolbar;
 
+import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import androidx.fragment.app.FragmentActivity;
@@ -43,7 +42,6 @@ public class MainActivity extends FragmentActivity {
     public static final String ACTION_LOCATION_SCANNING_SETTINGS = "android.settings.LOCATION_SCANNING_SETTINGS";
 
     private final static String LOCATION_SOURCE_SETTINGS_SHOWN = "com.yerseg.profiler.LOCATION_SOURCE_SETTINGS_SHOWN";
-    private final static String IGNORE_BATTERY_OPTIMIZATION_SETTINGS_SHOWN = "com.yerseg.profiler.IGNORE_BATTERY_OPTIMIZATION_SETTINGS_SHOWN";
     private final static String APPLICATION_DETAILS_SETTINGS_SHOWN = "com.yerseg.profiler.APPLICATION_DETAILS_SETTINGS_SHOWN";
     private final static String LOCATION_SCANNING_SETTINGS_SHOWN = "com.yerseg.profiler.LOCATION_SCANNING_SETTINGS_SHOWN";
     private final static String REQUEST_IGNORE_BATTERY_OPTIMIZATIONS_SHOWN = "com.yerseg.profiler.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS_SHOWN";
@@ -79,6 +77,7 @@ public class MainActivity extends FragmentActivity {
             }
 
             if (shouldShowSettingsActivity(REQUEST_IGNORE_BATTERY_OPTIMIZATIONS_SHOWN)) {
+                @SuppressLint("BatteryLife")
                 Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
                 intent.setData(Uri.parse("package:" + getApplicationContext().getPackageName()));
                 showLongToast("Allow the app to ignore battery optimizations please!");
@@ -191,20 +190,6 @@ public class MainActivity extends FragmentActivity {
         return isRunning;
     }
 
-    private boolean isUsageStatsPermissionsGranted() {
-        boolean granted = false;
-        AppOpsManager appOps = (AppOpsManager) getSystemService(APP_OPS_SERVICE);
-        int mode = appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), getPackageName());
-
-        if (mode == AppOpsManager.MODE_DEFAULT) {
-            granted = (checkCallingOrSelfPermission(android.Manifest.permission.PACKAGE_USAGE_STATS) == PackageManager.PERMISSION_GRANTED);
-        } else {
-            granted = (mode == AppOpsManager.MODE_ALLOWED);
-        }
-
-        return granted;
-    }
-
     void requestPermissions() {
         requestPermissions(new String[]{
                 Manifest.permission.ACCESS_COARSE_LOCATION,
@@ -214,13 +199,12 @@ public class MainActivity extends FragmentActivity {
                 Manifest.permission.BLUETOOTH_ADMIN,
                 Manifest.permission.CHANGE_WIFI_STATE,
                 Manifest.permission.FOREGROUND_SERVICE,
-                Manifest.permission.PACKAGE_USAGE_STATS,
                 Manifest.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
         }, PERMISSIONS_REQUEST_ID);
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         mIsPermissionsGranted = requestCode == PERMISSIONS_REQUEST_ID && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
     }
 
