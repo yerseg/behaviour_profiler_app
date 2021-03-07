@@ -5,15 +5,11 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
-import android.app.usage.EventStats;
-import android.app.usage.UsageStats;
-import android.app.usage.UsageStatsManager;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
 import android.content.BroadcastReceiver;
-import android.content.ClipData;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -28,7 +24,6 @@ import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.Process;
-import android.os.SystemClock;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
@@ -47,7 +42,6 @@ import com.google.android.gms.location.LocationServices;
 import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.UUID;
 
 public class ProfilingService extends Service {
@@ -294,9 +288,9 @@ public class ProfilingService extends Service {
                     Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.WIFI_STATS_FILE_NAME, connectionInfo);
                 } catch (Exception ex) {
                     ex.printStackTrace();
+                } finally {
+                    mWifiProfilingThreadHandler.postDelayed(this, WIFI_STATS_UPDATE_FREQ);
                 }
-
-                mWifiProfilingThreadHandler.postDelayed(this, WIFI_STATS_UPDATE_FREQ);
             }
         });
     }
@@ -307,6 +301,7 @@ public class ProfilingService extends Service {
                 new Thread(() -> {
                     try {
                         BluetoothDevice device = null;
+
                         try {
                             device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
                         } catch (Exception ex) {
@@ -366,8 +361,6 @@ public class ProfilingService extends Service {
                 if (isKilled)
                     return;
 
-                super.onScanResult(callbackType, result);
-
                 String resultStr = String.format(Locale.getDefault(), "%s;LE;%d;%d;%d;%d;%b;%b\n",
                         Utils.GetTimeStamp(System.currentTimeMillis()),
                         result.getAdvertisingSid(),
@@ -397,10 +390,10 @@ public class ProfilingService extends Service {
                         btScanner.startScan(mBtLeScanCallback);
                     }
 
-                    mBluetoothProfilingThreadHandler.postDelayed(this, BLUETOOTH_STATS_UPDATE_FREQ);
-
                 } catch (Exception ex) {
                     ex.printStackTrace();
+                } finally {
+                    mBluetoothProfilingThreadHandler.postDelayed(this, BLUETOOTH_STATS_UPDATE_FREQ);
                 }
             }
         });
