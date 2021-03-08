@@ -1,7 +1,7 @@
 package com.yerseg.profiler;
 
 import android.Manifest;
-import android.app.AppOpsManager;
+import android.annotation.SuppressLint;
 import android.app.NotificationManager;
 import android.bluetooth.BluetoothAdapter;
 import android.content.Context;
@@ -76,6 +76,7 @@ public class MainActivity extends FragmentActivity {
             }
 
             if (shouldShowSettingsActivity(REQUEST_IGNORE_BATTERY_OPTIMIZATIONS_SHOWN)) {
+                @SuppressLint("BatteryLife")
                 Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
                 intent.setData(Uri.parse("package:" + getApplicationContext().getPackageName()));
                 showLongToast("Allow the app to ignore battery optimizations please!");
@@ -197,8 +198,8 @@ public class MainActivity extends FragmentActivity {
                 Manifest.permission.BLUETOOTH_ADMIN,
                 Manifest.permission.CHANGE_WIFI_STATE,
                 Manifest.permission.FOREGROUND_SERVICE,
-                Manifest.permission.PACKAGE_USAGE_STATS,
-                Manifest.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+                Manifest.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                Manifest.permission.UPDATE_DEVICE_STATS
         }, PERMISSIONS_REQUEST_ID);
     }
 
