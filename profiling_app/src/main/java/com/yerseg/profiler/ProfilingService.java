@@ -26,6 +26,7 @@ import android.os.Looper;
 import android.os.Process;
 import android.util.Log;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
@@ -90,7 +91,6 @@ public class ProfilingService extends Service {
     private BroadcastReceiver mAnyBroadcastReceiver;
 
     private LocationCallback mLocationCallback;
-    private ScanCallback mBtLeScanCallback;
 
     @Override
     public void onCreate() {
@@ -186,39 +186,37 @@ public class ProfilingService extends Service {
         locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
 
         FusedLocationProviderClient fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
-        if (fusedLocationProviderClient != null) {
-            int permission = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION);
-            if (permission == PackageManager.PERMISSION_GRANTED) {
-                mLocationCallback = new LocationCallback() {
-                    @Override
-                    public void onLocationResult(LocationResult result) {
-                        Log.d("Profiler [LocationStat]", String.format(Locale.getDefault(), "\t%d\tonLocationResult()", Process.myTid()));
+        int permission = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION);
+        if (permission == PackageManager.PERMISSION_GRANTED) {
+            mLocationCallback = new LocationCallback() {
+                @Override
+                public void onLocationResult(@NonNull LocationResult result) {
+                    Log.d("Profiler [LocationStat]", String.format(Locale.getDefault(), "\t%d\tonLocationResult()", Process.myTid()));
 
-                        try {
-                            Location location = result.getLastLocation();
-                            String locationStats = String.format(Locale.getDefault(), "%s;%f;%f;%f;%f\n",
-                                    Utils.GetTimeStamp(System.currentTimeMillis()),
-                                    location.getAccuracy(),
-                                    location.getAltitude(),
-                                    location.getLatitude(),
-                                    location.getLongitude()
-                            );
+                    try {
+                        Location location = result.getLastLocation();
+                        String locationStats = String.format(Locale.getDefault(), "%s;%f;%f;%f;%f\n",
+                                Utils.GetTimeStamp(System.currentTimeMillis()),
+                                location.getAccuracy(),
+                                location.getAltitude(),
+                                location.getLatitude(),
+                                location.getLongitude()
+                        );
 
-                            Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), LOCATION_STATS_FILE_NAME, locationStats);
-                        } catch (Exception ex) {
-                            ex.printStackTrace();
-                        }
+                        Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), LOCATION_STATS_FILE_NAME, locationStats);
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
                     }
-                };
+                }
+            };
 
-                mLocationProfilingThread = new HandlerThread("LocationProfilingThread", Process.THREAD_PRIORITY_FOREGROUND);
-                mLocationProfilingThread.start();
+            mLocationProfilingThread = new HandlerThread("LocationProfilingThread", Process.THREAD_PRIORITY_FOREGROUND);
+            mLocationProfilingThread.start();
 
-                Looper looper = mLocationProfilingThread.getLooper();
-                mLocationProfilingThreadHandler = new Handler(looper);
+            Looper looper = mLocationProfilingThread.getLooper();
+            mLocationProfilingThreadHandler = new Handler(looper);
 
-                fusedLocationProviderClient.requestLocationUpdates(locationRequest, mLocationCallback, looper);
-            }
+            fusedLocationProviderClient.requestLocationUpdates(locationRequest, mLocationCallback, looper);
         }
     }
 
@@ -299,13 +297,7 @@ public class ProfilingService extends Service {
             public void onReceive(Context context, Intent intent) {
                 new Thread(() -> {
                     try {
-                        BluetoothDevice device = null;
-
-                        try {
-                            device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-                        } catch (Exception ex) {
-                            ex.printStackTrace();
-                        }
+                        BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
 
                         if (device != null) {
                             String bluetoothStats = String.format(Locale.getDefault(), "%s;%s;%s;%d;%d;%d;%d\n",
@@ -349,30 +341,6 @@ public class ProfilingService extends Service {
         Looper looper = mBluetoothProfilingThread.getLooper();
         mBluetoothProfilingThreadHandler = new Handler(looper);
 
-        mBtLeScanCallback = new ScanCallback() {
-            @Override
-            public void onScanResult(int callbackType, android.bluetooth.le.ScanResult result) {
-                boolean isKilled = false;
-                synchronized (this) {
-                    isKilled = isBtLeProfilingStopped;
-                }
-
-                if (isKilled)
-                    return;
-
-                String resultStr = String.format(Locale.getDefault(), "%s;LE;%d;%d;%d;%d;%b;%b\n",
-                        Utils.GetTimeStamp(System.currentTimeMillis()),
-                        result.getAdvertisingSid(),
-                        result.getDataStatus(),
-                        result.getRssi(),
-                        result.getTxPower(),
-                        result.isConnectable(),
-                        result.isLegacy());
-
-                Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.BLUETOOTH_STATS_FILE_NAME, resultStr);
-            }
-        };
-
         mBluetoothProfilingThreadHandler.post(new Runnable() {
             @Override
             public void run() {
@@ -382,13 +350,36 @@ public class ProfilingService extends Service {
                     if (bluetoothAdapter != null) {
                         if (!bluetoothAdapter.isDiscovering())
                             bluetoothAdapter.startDiscovery();
-                    }
 
-                    final BluetoothLeScanner btScanner = BluetoothAdapter.getDefaultAdapter().getBluetoothLeScanner();
-                    if (btScanner != null) {
-                        btScanner.startScan(mBtLeScanCallback);
-                    }
+                        final BluetoothLeScanner btScanner = bluetoothAdapter.getBluetoothLeScanner();
+                        btScanner.startScan(new ScanCallback() {
+                            @Override
+                            public void onScanResult(int callbackType, android.bluetooth.le.ScanResult result) {
+                                super.onScanResult(callbackType, result);
 
+                                new Thread(() -> {
+                                    boolean isKilled = false;
+                                    synchronized (this) {
+                                        isKilled = isBtLeProfilingStopped;
+                                    }
+
+                                    if (isKilled)
+                                        return;
+
+                                    String resultStr = String.format(Locale.getDefault(), "%s;LE;%d;%d;%d;%d;%b;%b\n",
+                                            Utils.GetTimeStamp(System.currentTimeMillis()),
+                                            result.getAdvertisingSid(),
+                                            result.getDataStatus(),
+                                            result.getRssi(),
+                                            result.getTxPower(),
+                                            result.isConnectable(),
+                                            result.isLegacy());
+
+                                    Utils.FileWriter.writeFile(Utils.getProfilingFilesDir(getApplicationContext()), ProfilingService.BLUETOOTH_STATS_FILE_NAME, resultStr);
+                                }).start();
+                            }
+                        });
+                    }
                 } catch (Exception ex) {
                     ex.printStackTrace();
                 } finally {
@@ -425,9 +416,7 @@ public class ProfilingService extends Service {
 
     private void stopLocationTracking() {
         final FusedLocationProviderClient fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
-        if (fusedLocationProviderClient != null) {
-            fusedLocationProviderClient.removeLocationUpdates(mLocationCallback);
-        }
+        fusedLocationProviderClient.removeLocationUpdates(mLocationCallback);
 
         mLocationProfilingThreadHandler.removeCallbacksAndMessages(null);
         mLocationProfilingThread.quit();
