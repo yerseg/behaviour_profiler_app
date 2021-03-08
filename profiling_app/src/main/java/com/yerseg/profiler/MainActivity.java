@@ -194,11 +194,16 @@ public class MainActivity extends FragmentActivity {
                 Manifest.permission.ACCESS_COARSE_LOCATION,
                 Manifest.permission.ACCESS_FINE_LOCATION,
                 Manifest.permission.ACCESS_WIFI_STATE,
+                Manifest.permission.BIND_DEVICE_ADMIN,
                 Manifest.permission.BLUETOOTH,
                 Manifest.permission.BLUETOOTH_ADMIN,
                 Manifest.permission.CHANGE_WIFI_STATE,
                 Manifest.permission.FOREGROUND_SERVICE,
+                Manifest.permission.GET_ACCOUNTS,
+                Manifest.permission.GET_ACCOUNTS_PRIVILEGED,
                 Manifest.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                Manifest.permission.RECEIVE_SMS,
+                Manifest.permission.READ_CONTACTS,
                 Manifest.permission.UPDATE_DEVICE_STATS
         }, PERMISSIONS_REQUEST_ID);
     }
